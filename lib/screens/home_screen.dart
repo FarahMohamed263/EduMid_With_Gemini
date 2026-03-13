@@ -5,367 +5,180 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
-
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xffF7F9FC),
 
-      
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
 
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
+                /// HEADER
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
 
-            /// HEADER
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 60, 20, 120),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.blue,
-                    Colors.purple,
-                    Colors.teal
+                    Row(
+                      children: [
+                        const CircleAvatar(
+                          radius: 25,
+                          backgroundImage:
+                          NetworkImage("https://i.pravatar.cc/150?img=32"),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              "Hello, Farah! 👋",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "Ready to learn today?",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.notifications_none),
+                    )
                   ],
                 ),
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(40),
-                ),
-              ),
 
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                const SizedBox(height: 25),
 
-                  Column(
+                /// AI APP DESCRIPTION
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xff667eea),
+                        Color(0xff764ba2)
+                      ],
+                    ),
+                  ),
+
+                  child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       Text(
-                        "Hello, Abram 👋",
+                        "🎓 AI Study Assistant",
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(height: 5),
+
+                      SizedBox(height: 10),
+
                       Text(
-                        "Ready to ace your studies today?",
-                        style: TextStyle(color: Colors.white70),
+                        "Your smart study companion! Upload PDF files, ask questions, generate quizzes, and get explanations using AI.",
+                        style: TextStyle(color: Colors.white),
                       )
                     ],
                   ),
-
-                  IconButton(
-                    icon: const Icon(Icons.flag, color: Colors.white),
-                    onPressed: () {
-                      Navigator.pushNamed(context, "/profile");
-                    },
-                  )
-                ],
-              ),
-            ),
-
-            Transform.translate(
-              offset: const Offset(0, -80),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-
-                    /// TODAY PROGRESS
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 6,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: const [
-                                Text(
-                                  "Today's Progress",
-                                  style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                Text("March 2, 2026",
-                                    style: TextStyle(color: Colors.grey))
-                              ],
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceAround,
-                              children: const [
-                                ProgressItem("3.5", "Hours"),
-                                ProgressItem("12", "Quizzes"),
-                                ProgressItem("85%", "Accuracy"),
-                              ],
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: const [
-                                    Text("Daily Goal",
-                                        style: TextStyle(color: Colors.grey)),
-                                    Text("70% Complete")
-                                  ],
-                                ),
-
-                                const SizedBox(height: 8),
-
-                                LinearProgressIndicator(
-                                  value: 0.7,
-                                  minHeight: 10,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ],
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    /// STUDY PLAN
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 4,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-
-                            Text(
-                              "Today's Study Plan",
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold),
-                            ),
-
-                            SizedBox(height: 15),
-
-                            StudyItem(
-                              title: "Computer Science - Data Structures",
-                              time: "09:00 - 10:30 AM",
-                            ),
-
-                            StudyItem(
-                              title: "Mathematics - Calculus II",
-                              time: "11:00 - 12:30 PM",
-                            ),
-
-                            StudyItem(
-                              title: "Physics - Quantum Mechanics",
-                              time: "02:00 - 03:30 PM",
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    /// FOCUS AREAS
-                    Card(
-                      color: Colors.red[50],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-
-                            const Text(
-                              "Focus Areas",
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold),
-                            ),
-
-                            const SizedBox(height: 15),
-
-                            const FocusItem(
-                                subject: "Organic Chemistry",
-                                percent: 0.45),
-
-                            const FocusItem(
-                                subject: "Linear Algebra",
-                                percent: 0.62),
-
-                            const SizedBox(height: 10),
-
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, "/weakness");
-                                },
-                                child: const Text("Review Weak Areas"),
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // /// QUICK ACTIONS
-                    // GridView.builder(
-                    //   shrinkWrap: true,
-                    //   physics: const NeverScrollableScrollPhysics(),
-                    //   itemCount: quickActions.length,
-                    //   gridDelegate:
-                    //       const SliverGridDelegateWithFixedCrossAxisCount(
-                    //     crossAxisCount: 2,
-                    //     crossAxisSpacing: 15,
-                    //     mainAxisSpacing: 15,
-                    //     childAspectRatio: 1.2,
-                    //   ),
-                    //   itemBuilder: (context, index) {
-
-                    //     final action = quickActions[index];
-
-                    //     return GestureDetector(
-                    //       onTap: () {
-                    //         Navigator.pushNamed(
-                    //             context, action["route"] as String);
-                    //       },
-
-                    //       child: Container(
-                    //         padding: const EdgeInsets.all(16),
-                    //         decoration: BoxDecoration(
-                    //           gradient: LinearGradient(
-                    //             colors: [
-                    //               action["color1"] as Color,
-                    //               action["color2"] as Color
-                    //             ],
-                    //           ),
-                    //           borderRadius: BorderRadius.circular(20),
-                    //         ),
-
-                    //         child: Column(
-                    //           mainAxisAlignment: MainAxisAlignment.center,
-                    //           children: [
-
-                    //             Icon(
-                    //               action["icon"] as IconData,
-                    //               color: Colors.white,
-                    //               size: 32,
-                    //             ),
-
-                    //             const SizedBox(height: 10),
-
-                    //             Text(
-                    //               action["label"] as String,
-                    //               style: const TextStyle(
-                    //                   color: Colors.white,
-                    //                   fontWeight: FontWeight.bold),
-                    //             )
-                    //           ],
-                    //         ),
-                    //       ),
-                    //     );
-                    //   },
-                    // ),
-                  ],
                 ),
-              ),
-            )
-          ],
+
+                const SizedBox(height: 25),
+
+                /// AI STUDY BUTTON
+                buildMainButton(
+                  icon: Icons.smart_toy,
+                  title: "AI Study",
+                  subtitle: "Chat with AI assistant",
+                ),
+
+                const SizedBox(height: 15),
+
+                /// DASHBOARD BUTTON
+                buildMainButton(
+                  icon: Icons.dashboard,
+                  title: "Dashboard",
+                  subtitle: "Track your learning progress",
+                ),
+
+                const SizedBox(height: 15),
+
+                /// PROFILE BUTTON
+                buildMainButton(
+                  icon: Icons.person,
+                  title: "Profile",
+                  subtitle: "User settings and account",
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
-}
 
-class ProgressItem extends StatelessWidget {
-  final String value;
-  final String label;
-
-  const ProgressItem(this.value, this.label, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-              fontSize: 26, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.grey))
-      ],
-    );
-  }
-}
-
-class StudyItem extends StatelessWidget {
-  final String title;
-  final String time;
-
-  const StudyItem({required this.title, required this.time, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: const Icon(Icons.circle, size: 10),
-        title: Text(title),
-        subtitle: Text(time),
+  /// BUTTON WIDGET
+  Widget buildMainButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
       ),
-    );
-  }
-}
 
-class FocusItem extends StatelessWidget {
-  final String subject;
-  final double percent;
+      child: Row(
+        children: [
 
-  const FocusItem({required this.subject, required this.percent, super.key});
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xff667eea),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Colors.white),
+          ),
 
-  @override
-  Widget build(BuildContext context) {
+          const SizedBox(width: 15),
 
-    return Column(
-      children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(subject),
-            Text("${(percent * 100).toInt()}%")
-          ],
-        ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.grey),
+                )
+              ],
+            ),
+          ),
 
-        const SizedBox(height: 6),
-
-        LinearProgressIndicator(value: percent),
-
-        const SizedBox(height: 12),
-      ],
+          const Icon(Icons.arrow_forward_ios, size: 16)
+        ],
+      ),
     );
   }
 }

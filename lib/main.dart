@@ -1,3 +1,4 @@
+import 'package:ai_study_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_page.dart';
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
 
       routes: {
         '/onboarding': (context) => const OnboardingScreen(),
-        '/home': (context) => const MainNavigation(),
+        '/home': (context) => const HomePage(),
       },
 
       onUnknownRoute: (settings) {

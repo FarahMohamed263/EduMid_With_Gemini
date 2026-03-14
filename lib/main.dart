@@ -2,7 +2,6 @@ import 'package:ai_study_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_page.dart';
-import 'screens/main_navigation.dart';
 
 void main() {
   runApp(const MyApp());

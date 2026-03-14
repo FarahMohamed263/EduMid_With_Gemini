@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'home_screen.dart'; // خلي عندك صفحة HomeScreen جاهزة
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -17,6 +20,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   bool passwordVisible = false;
   bool confirmPasswordVisible = false;
+
+  bool isLoading = false; // علشان Loading state
 
   @override
   Widget build(BuildContext context) {
@@ -203,19 +208,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () {
-                              if (_formKey.currentState!.validate()) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Account created successfully",
-                                    ),
-                                  ),
-                                );
-                                Navigator.pop(context);
-                              }
-                            },
-                            child: const Text("Create Account"),
+                            onPressed: isLoading
+                                ? null
+                                : () async {
+                                    if (_formKey.currentState!.validate()) {
+                                      setState(() {
+                                        isLoading = true;
+                                      });
+
+                                      try {
+                                        // 1️⃣ Sign up in Firebase Auth
+                                        UserCredential userCredential =
+                                            await FirebaseAuth.instance
+                                                .createUserWithEmailAndPassword(
+                                                  email: emailController.text
+                                                      .trim(),
+                                                  password: passwordController
+                                                      .text
+                                                      .trim(),
+                                                );
+
+                                        // 2️⃣ Store extra data in Firestore
+                                        await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(userCredential.user!.uid)
+                                            .set({
+                                              'name': nameController.text
+                                                  .trim(),
+                                              'email': emailController.text
+                                                  .trim(),
+                                              'createdAt': Timestamp.now(),
+                                            });
+
+                                        // 3️⃣ Navigate to Home
+                                        if (context.mounted) {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const HomePage(),
+                                            ),
+                                          );
+                                        }
+                                      } on FirebaseAuthException catch (e) {
+                                        String message = '';
+                                        if (e.code == 'email-already-in-use') {
+                                          message =
+                                              'This email is already registered';
+                                        } else if (e.code == 'weak-password') {
+                                          message = 'Password is too weak';
+                                        } else {
+                                          message =
+                                              e.message ?? 'An error occurred';
+                                        }
+
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(content: Text(message)),
+                                          );
+                                        }
+                                      } finally {
+                                        if (mounted) {
+                                          setState(() {
+                                            isLoading = false;
+                                          });
+                                        }
+                                      }
+                                    }
+                                  },
+                            child: isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                : const Text("Create Account"),
                           ),
                         ),
                       ],

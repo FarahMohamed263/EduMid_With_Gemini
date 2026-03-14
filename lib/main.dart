@@ -2,8 +2,15 @@ import 'package:ai_study_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // الملف اللي اتولد من flutterfire configure
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // مهم قبل أي Firebase call
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 

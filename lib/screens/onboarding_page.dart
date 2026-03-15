@@ -1,4 +1,6 @@
+import 'package:ai_study_app/screens/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/image_with_fallback.dart';
 
 class Slide {
@@ -52,18 +54,25 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int currentSlide = 0;
 
+  Future<void> finishOnboarding() async {
+    // نخزن ان المستخدم شاف الـ onboarding
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seenOnboarding', true);
+
+    // نروح للـ Login
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
   void handleNext() {
     if (currentSlide < slides.length - 1) {
       setState(() {
         currentSlide++;
       });
     } else {
-      Navigator.pushReplacementNamed(context, '/home');
+      finishOnboarding();
     }
-  }
-
-  void handleSkip() {
-    Navigator.pushReplacementNamed(context, '/home');
   }
 
   @override
@@ -76,8 +85,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Expanded(
             child: Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -87,7 +95,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           height: 250,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
+                            boxShadow: const [
                               BoxShadow(
                                 color: Colors.black26,
                                 blurRadius: 12,
@@ -129,19 +137,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     Text(
                       slide.title,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       slide.description,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                     ),
                     const SizedBox(height: 20),
                     Row(
@@ -154,9 +156,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           height: 8,
                           width: currentSlide == index ? 24 : 8,
                           decoration: BoxDecoration(
-                            color: currentSlide == index
-                                ? Colors.deepPurple
-                                : Colors.grey,
+                            color: currentSlide == index ? Colors.deepPurple : Colors.black12,
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -183,16 +183,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Text("Next", style: TextStyle(fontSize: 16)),
-                      SizedBox(width: 8),
-                      Icon(Icons.chevron_right),
+                    children: [
+                      Text(
+                        currentSlide == slides.length - 1 ? "Get Started" : "Next",
+                        style: const TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.chevron_right),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: handleSkip,
+                  onPressed: finishOnboarding,
                   child: const Text("Skip"),
                 ),
               ],

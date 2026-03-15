@@ -120,7 +120,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [Colors.deepPurple, Colors.purpleAccent],
+                                colors: [
+                                  Colors.deepPurple,
+                                  Colors.purpleAccent,
+                                ],
                               ),
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -144,6 +147,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       slide.description,
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                    
                     ),
                     const SizedBox(height: 20),
                     Row(
@@ -206,3 +210,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+

@@ -1,6 +1,8 @@
-import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'onboarding_page.dart';
+import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,122 +12,256 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-  Timer? _navigationTimer;
+    with TickerProviderStateMixin {
+  late AnimationController glowController;
+  late AnimationController scaleController;
+  late AnimationController dotsController;
+  late AnimationController rotateController;
 
   @override
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..forward();
+    /// Animations
+    glowController =
+    AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
 
-    _scale = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.elasticOut,
-    );
+    scaleController =
+    AnimationController(vsync: this, duration: const Duration(seconds: 4))
+      ..repeat(reverse: true);
 
-    _navigationTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
+    dotsController =
+    AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))
+      ..repeat();
 
+    rotateController =
+    AnimationController(vsync: this, duration: const Duration(seconds: 3))
+      ..repeat();
+
+    /// Start app flow
+    _startApp();
+  }
+
+  Future<void> _startApp() async {
+    await Future.delayed(const Duration(seconds: 5));
+
+    final prefs = await SharedPreferences.getInstance();
+    final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
+
+    if (!mounted) return;
+
+    if (seenOnboarding) {
+      /// روح على Login
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const OnboardingScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
-    });
+    } else {
+      /// روح على Onboarding
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+    }
   }
 
   @override
   void dispose() {
-    _navigationTimer?.cancel();
-    _controller.dispose();
+    glowController.dispose();
+    scaleController.dispose();
+    dotsController.dispose();
+    rotateController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
-    final textTheme = Theme.of(context).textTheme;
-
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
             colors: [
-              Color(0xFF6366F1),
-              Color(0xFF8B5CF6),
-              Color(0xFF06B6D4),
+              Color(0xFF0B0F2A),
+              Color(0xFF050816),
             ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
-
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-
-              /// APP ICON
-              ScaleTransition(
-                scale: _scale,
-                child: Container(
-                  width: 130,
-                  height: 130,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(.2),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(.3),
+        child: Stack(
+          children: [
+            /// Glow Background
+            Center(
+              child: AnimatedBuilder(
+                animation: scaleController,
+                builder: (_, __) {
+                  return Transform.scale(
+                    scale: 1 + (scaleController.value * 0.2),
+                    child: Container(
+                      width: 300,
+                      height: 300,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blue.withOpacity(0.2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.3),
+                            blurRadius: 80,
+                            spreadRadius: 20,
+                          )
+                        ],
+                      ),
                     ),
+                  );
+                },
+              ),
+            ),
+
+            /// Main Content
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  /// Logo Box
+                  AnimatedBuilder(
+                    animation: glowController,
+                    builder: (_, __) {
+                      return Container(
+                        width: 130,
+                        height: 130,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.blue.withOpacity(0.2),
+                              Colors.blueAccent.withOpacity(0.2),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(0.3),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(
+                                  0.3 + glowController.value * 0.3),
+                              blurRadius: 20 + glowController.value * 20,
+                            )
+                          ],
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            const Icon(Icons.psychology,
+                                size: 50, color: Colors.blueAccent),
+
+                            /// rotating spark
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: AnimatedBuilder(
+                                animation: rotateController,
+                                builder: (_, __) {
+                                  return Transform.rotate(
+                                    angle: rotateController.value * 2 * pi,
+                                    child: Icon(Icons.auto_awesome,
+                                        size: 24, color: Colors.blue[200]),
+                                  );
+                                },
+                              ),
+                            ),
+
+                            const Positioned(
+                              bottom: 10,
+                              right: 10,
+                              child: Icon(Icons.menu_book,
+                                  size: 22, color: Colors.blue),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
 
-                  child: const Icon(
-                    Icons.school,
-                    size: 70,
-                    color: Colors.white,
+                  const SizedBox(height: 30),
+
+                  /// App Name
+                  AnimatedBuilder(
+                    animation: glowController,
+                    builder: (_, __) {
+                      return Column(
+                        children: [
+                          Text(
+                            "EduMind",
+                            style: TextStyle(
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                              foreground: Paint()
+                                ..shader = const LinearGradient(
+                                  colors: [
+                                    Colors.blue,
+                                    Colors.lightBlueAccent,
+                                  ],
+                                ).createShader(
+                                    const Rect.fromLTWH(0, 0, 200, 70)),
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 20 + glowController.value * 10,
+                                  color: Colors.blue.withOpacity(0.6),
+                                )
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            "Smart Learning Powered by AI",
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                ),
+
+                  const SizedBox(height: 40),
+
+                  /// Loading dots
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(3, (index) {
+                      return AnimatedBuilder(
+                        animation: dotsController,
+                        builder: (_, __) {
+                          double delay = index * 0.2;
+                          double value =
+                          (dotsController.value - delay).clamp(0.0, 1.0);
+
+                          return Transform.scale(
+                            scale: 1 + (sin(value * pi) * 0.5),
+                            child: Opacity(
+                              opacity: 0.3 + (sin(value * pi) * 0.7),
+                              child: Container(
+                                margin:
+                                const EdgeInsets.symmetric(horizontal: 4),
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.blueAccent,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 40),
-
-              /// APP NAME
-              Text(
-                "AI Study",
-                style: textTheme.headlineLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              /// TAGLINE
-              Text(
-                "Your Smart Study Assistant",
-                style: textTheme.titleLarge?.copyWith(
-                  color: Colors.white70,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                "Summarize • Quiz • Learn Faster",
-                style: textTheme.bodyLarge?.copyWith(
-                  color: Colors.white70,
-                ),
-              ),
-
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

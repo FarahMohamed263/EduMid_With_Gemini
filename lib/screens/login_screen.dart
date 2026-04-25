@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'signup_screen.dart';
+import 'home_screen.dart'; // لو ملف HomePage مختلف
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,277 +12,311 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
+
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool passwordVisible = false;
 
-  // ================= Google Sign-In =================
-  Future<UserCredential?> signInWithGoogle() async {
-    try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return null; // لو الغى تسجيل الدخول
+  bool showPassword = false;
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+  late AnimationController glowController;
+  late Animation<double> glowAnimation;
 
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+  @override
+  void initState() {
+    super.initState();
 
-      return await FirebaseAuth.instance.signInWithCredential(credential);
-    } catch (e) {
-      print('Google Sign-In error: $e');
-      return null;
-    }
+    /// ✨ Glow Animation
+    glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..repeat(reverse: true);
+
+    glowAnimation = Tween<double>(begin: 0.2, end: 1).animate(
+      CurvedAnimation(parent: glowController, curve: Curves.easeInOut),
+    );
   }
 
-  // ================================================
+  /// ================= Google =================
+  Future<UserCredential?> signInWithGoogle() async {
+    final GoogleSignInAccount? user = await GoogleSignIn().signIn();
+    if (user == null) return null;
+
+    final auth = await user.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: auth.idToken,
+    );
+
+    return await FirebaseAuth.instance.signInWithCredential(credential);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xfff3f4f6), Color(0xffe0e7ff), Color(0xfffdf2f8)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      body: Stack(
+        children: [
+          /// 🔥 BACKGROUND
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF0B0F2A),
+                  Color(0xFF050816),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
           ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
+
+          /// ✨ PARTICLES
+          const FloatingParticles(),
+
+          /// 💎 CONTENT
+          Center(
+            child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // LOGO
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.deepPurple, Colors.pink],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome,
+                  const SizedBox(height: 40),
+
+                  const Text(
+                    "AI Study",
+                    style: TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      size: 32,
                     ),
                   ),
 
-                  const SizedBox(height: 20),
-
-                  // TITLE
-                  const Text(
-                    "Smart Study AI",
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                  ),
                   const SizedBox(height: 8),
+
                   const Text(
-                    "Welcome back",
+                    "Your Smart Learning Companion",
                     style: TextStyle(color: Colors.grey),
                   ),
-                  const SizedBox(height: 30),
 
-                  // CARD
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: const [
-                        BoxShadow(blurRadius: 20, color: Colors.black12),
-                      ],
-                    ),
+                  const SizedBox(height: 40),
+
+                  /// ✨✨ الكارد بالـ Glow ✨✨
+                  AnimatedBuilder(
+                    animation: glowAnimation,
+                    builder: (context, child) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(24),
+
+                          /// 🔥 glow
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(
+                                  0.4 * glowAnimation.value),
+                              blurRadius: 25 * glowAnimation.value,
+                              spreadRadius: 2,
+                            ),
+                          ],
+
+                          /// 🔥 border بيشع
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(
+                                0.3 * glowAnimation.value),
+                          ),
+                        ),
+                        child: child,
+                      );
+                    },
+
+                    /// 👇 المحتوى جوه الكارد
                     child: Column(
                       children: [
-                        // EMAIL
-                        TextFormField(
+                        CustomInput(
+                          icon: Icons.email,
+                          hint: "Email",
                           controller: emailController,
-                          autovalidateMode:
-                              AutovalidateMode.onUserInteraction,
-                          decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.email),
-                            hintText: "your.email@university.edu",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Email is required";
-                            }
-                            if (!value.contains('@')) {
-                              return "Enter a valid email";
-                            }
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // PASSWORD
-                        TextFormField(
-                          controller: passwordController,
-                          obscureText: !passwordVisible,
-                          autovalidateMode:
-                              AutovalidateMode.onUserInteraction,
-                          decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.lock),
-                            hintText: "Password",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                passwordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  passwordVisible = !passwordVisible;
-                                });
-                              },
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Password is required";
-                            }
-                            if (value.contains(' ')) {
-                              return "Password cannot contain spaces";
-                            }
-                            if (value.length < 8) {
-                              return "Password must be at least 8 characters";
-                            }
-                            return null;
-                          },
                         ),
 
                         const SizedBox(height: 20),
 
-                        // LOGIN BUTTON
+                        CustomInput(
+                          icon: Icons.lock,
+                          hint: "Password",
+                          controller: passwordController,
+                          obscure: !showPassword,
+                          suffix: IconButton(
+                            icon: Icon(
+                              showPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                showPassword = !showPassword;
+                              });
+                            },
+                          ),
+                        ),
+
+                        const SizedBox(height: 30),
+
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: const Color(0xFF3B82F6),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            onPressed: () async {
-                              if (_formKey.currentState!.validate()) {
-                                try {
-                                  UserCredential userCredential = await FirebaseAuth
-                                      .instance
-                                      .signInWithEmailAndPassword(
-                                        email: emailController.text.trim(),
-                                        password:
-                                            passwordController.text.trim(),
-                                      );
+                           onPressed: () async {
+                                            try {
+                                              await FirebaseAuth.instance.signInWithEmailAndPassword(
+                                                email: emailController.text.trim(),
+                                                password: passwordController.text.trim(),
+                                              );
 
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("Login successful"),
-                                    ),
-                                  );
+                                              // هنا بدلاً من مجرد عرض SnackBar، نروح على الصفحة الرئيسية
+                                              Navigator.pushReplacement(
+                                                context,
+                                                MaterialPageRoute(builder: (context) => const HomePage()),
+                                              );
 
-                                  Navigator.pushReplacementNamed(context, "/home");
-                                } on FirebaseAuthException catch (e) {
-                                  String message = "";
-                                  if (e.code == 'user-not-found') {
-                                    message =
-                                        "No user found for this email.";
-                                  } else if (e.code == 'wrong-password') {
-                                    message = "Wrong password provided.";
-                                  } else {
-                                    message = e.message ?? "Login failed.";
-                                  }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
-                                  );
-                                }
-                              }
-                            },
+                                            } catch (e) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text(e.toString())),
+                                              );
+                                            }
+                                          },
                             child: const Text("Sign In"),
                           ),
                         ),
 
                         const SizedBox(height: 16),
 
-                        // GOOGLE SIGN-IN BUTTON
                         SizedBox(
                           width: double.infinity,
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.g_mobiledata),
-                            label: const Text("Continue with Google"),
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              side: const BorderSide(color: Colors.white24),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
                             onPressed: () async {
-                              final userCredential = await signInWithGoogle();
-                              if (userCredential != null) {
+                              final user = await signInWithGoogle();
+                              if (user != null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content:
-                                        Text("Google Sign-In successful"),
-                                  ),
-                                );
-                                Navigator.pushReplacementNamed(
-                                    context, "/home");
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Google Sign-In canceled"),
-                                  ),
+                                      content: Text("Google success")),
                                 );
                               }
                             },
+                            child: const Text(
+                              "Continue with Google",
+                              style: TextStyle(color: Colors.white),
+                            ),
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
 
-                        // GO TO SIGNUP
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text("Don't have an account?"),
+                            const Text(
+                              "Don't have an account?",
+                              style: TextStyle(color: Colors.grey),
+                            ),
                             TextButton(
                               onPressed: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        const SignUpScreen(),
+                                        SignUpScreenNew(),
                                   ),
                                 );
                               },
                               child: const Text("Sign Up"),
-                            ),
+                            )
                           ],
-                        ),
+                        )
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
 
                   const Text(
-                    "By continuing you agree to Terms and Privacy Policy",
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                    textAlign: TextAlign.center,
+                    "By continuing, you agree to Terms & Privacy",
+                    style: TextStyle(color: Colors.grey),
                   ),
                 ],
               ),
             ),
           ),
-        ),
+        ],
       ),
+    );
+  }
+}
+
+class FloatingParticles extends StatelessWidget {
+  const FloatingParticles({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: List.generate(30, (index) {
+        return Positioned(
+          left: (index * 13.0) % MediaQuery.of(context).size.width,
+          top: (index * 29.0) % MediaQuery.of(context).size.height,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 20.0),
+            duration: Duration(seconds: 3 + index % 5),
+            curve: Curves.easeInOut,
+            builder: (_, value, __) {
+              return Transform.translate(
+                offset: Offset(0, -value),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.2, end: 1.0),
+                  duration: Duration(seconds: 2 + (index % 3)),
+                  curve: Curves.easeInOut,
+                  builder: (_, opacityValue, __) {
+                    return Opacity(
+                      opacity: opacityValue,
+                      child: Container(
+                        width: 4 + (index % 3).toDouble(), // اختلاف بسيط في الحجم
+                        height: 4 + (index % 3).toDouble(),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.blue.withOpacity(0.4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.6),
+                              blurRadius: 8, // 👈 ده ال glow الحقيقي
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        );
+      }),
     );
   }
 }

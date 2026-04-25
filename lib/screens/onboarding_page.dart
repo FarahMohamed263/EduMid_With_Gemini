@@ -1,18 +1,16 @@
-import 'package:ai_study_app/screens/login_screen.dart';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/image_with_fallback.dart';
+import 'login_screen.dart';
 
 class Slide {
   final String title;
   final String description;
-  final String image;
   final IconData icon;
 
   Slide({
     required this.title,
     required this.description,
-    required this.image,
     required this.icon,
   });
 }
@@ -21,26 +19,20 @@ final List<Slide> slides = [
   Slide(
     title: "Study Smarter, Not Harder",
     description:
-        "Harness the power of AI to transform your learning experience and achieve academic excellence.",
+    "Harness the power of AI to transform your learning experience and achieve academic excellence.",
     icon: Icons.auto_awesome,
-    image:
-        "https://images.unsplash.com/photo-1704748082614-8163a88e56b8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080",
   ),
   Slide(
     title: "Turn PDFs into Quizzes Instantly",
     description:
-        "Upload your study materials and let AI generate personalized quizzes in seconds.",
+    "Upload your study materials and let AI generate personalized quizzes in seconds.",
     icon: Icons.article,
-    image:
-        "https://images.unsplash.com/photo-1770233621425-5d9ee7a0a700?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080",
   ),
   Slide(
     title: "Track Your Progress with AI",
     description:
-        "Get intelligent insights into your learning patterns and areas for improvement.",
+    "Get intelligent insights into your learning patterns and areas for improvement.",
     icon: Icons.trending_up,
-    image:
-        "https://images.unsplash.com/photo-1758518731027-78a22c8852ec?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080",
   ),
 ];
 
@@ -51,15 +43,46 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with TickerProviderStateMixin {
   int currentSlide = 0;
 
+  late AnimationController mainController;
+  late AnimationController glowController;
+  late AnimationController floatingController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    mainController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..forward();
+
+    glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    floatingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    mainController.dispose();
+    glowController.dispose();
+    floatingController.dispose();
+    super.dispose();
+  }
+
   Future<void> finishOnboarding() async {
-    // نخزن ان المستخدم شاف الـ onboarding
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('seenOnboarding', true);
 
-    // نروح للـ Login
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
     );
@@ -69,6 +92,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (currentSlide < slides.length - 1) {
       setState(() {
         currentSlide++;
+        mainController.forward(from: 0); // restart animation
       });
     } else {
       finishOnboarding();
@@ -80,128 +104,228 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final slide = slides[currentSlide];
 
     return Scaffold(
-      body: Column(
+      backgroundColor: const Color(0xFF050816),
+      body: Stack(
         children: [
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          height: 250,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 12,
-                                offset: Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(30),
-                            child: ImageWithFallback(
-                              imageUrl: slide.image,
-                              width: double.infinity,
-                              height: 250,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 16,
-                          left: 16,
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Colors.deepPurple,
-                                  Colors.purpleAccent,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Icon(
-                              slide.icon,
-                              color: Colors.white,
-                              size: 30,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 30),
-                    Text(
-                      slide.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      slide.description,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                    
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        slides.length,
-                        (index) => AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          height: 8,
-                          width: currentSlide == index ? 24 : 8,
-                          decoration: BoxDecoration(
-                            color: currentSlide == index ? Colors.deepPurple : Colors.black12,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+          /// SKIP
+          Positioned(
+            top: 50,
+            right: 20,
+            child: TextButton(
+              onPressed: finishOnboarding,
+              child: const Text(
+                "Skip",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
                 ),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          /// MAIN CONTENT
+          Center(
+            child: AnimatedBuilder(
+              animation: mainController,
+              builder: (_, __) {
+                double slideX = 100 * (1 - mainController.value);
+
+                return Opacity(
+                  opacity: mainController.value,
+                  child: Transform.translate(
+                    offset: Offset(slideX, 0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        /// CIRCLE (Illustration)
+                        AnimatedBuilder(
+                          animation: glowController,
+                          builder: (_, __) {
+                            return Container(
+                              width: 256,
+                              height: 256,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.blue.withOpacity(0.1),
+                                    Colors.blue.withOpacity(0.05),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.2),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.withOpacity(
+                                        0.1 + glowController.value * 0.1),
+                                    blurRadius: 40 +
+                                        glowController.value * 20,
+                                  )
+                                ],
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(
+                                    slide.icon,
+                                    size: 80,
+                                    color: Colors.blueAccent,
+                                  ),
+
+                                  /// TOP RIGHT FLOAT
+                                  Positioned(
+                                    top: -16,
+                                    right: -16,
+                                    child: AnimatedBuilder(
+                                      animation: floatingController,
+                                      builder: (_, __) {
+                                        double scale = 1 +
+                                            (sin(floatingController.value *
+                                                pi) *
+                                                0.5);
+
+                                        return Transform.scale(
+                                          scale: scale,
+                                          child: Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.blue
+                                                  .withOpacity(0.3),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+
+                                  /// BOTTOM LEFT FLOAT
+                                  Positioned(
+                                    bottom: -24,
+                                    left: -24,
+                                    child: AnimatedBuilder(
+                                      animation: floatingController,
+                                      builder: (_, __) {
+                                        double scale = 1 +
+                                            (sin(floatingController.value *
+                                                pi) *
+                                                0.3);
+
+                                        return Transform.scale(
+                                          scale: scale,
+                                          child: Container(
+                                            width: 48,
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.blue
+                                                  .withOpacity(0.2),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 40),
+
+                        /// TITLE + DESC
+                        Padding(
+                          padding:
+                          const EdgeInsets.symmetric(horizontal: 30),
+                          child: Column(
+                            children: [
+                              Text(
+                                slide.title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                slide.description,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          /// BOTTOM CONTROLS
+          Positioned(
+            bottom: 30,
+            left: 20,
+            right: 20,
             child: Column(
               children: [
+                /// INDICATORS
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    slides.length,
+                        (index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      height: 8,
+                      width: currentSlide == index ? 24 : 8,
+                      decoration: BoxDecoration(
+                        color: currentSlide == index
+                            ? Colors.blue
+                            : Colors.white24,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                /// NEXT BUTTON
                 ElevatedButton(
                   onPressed: handleNext,
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: Colors.blue,
+                    minimumSize: const Size.fromHeight(55),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
+                      borderRadius: BorderRadius.circular(30),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.deepPurple,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        currentSlide == slides.length - 1 ? "Get Started" : "Next",
-                        style: const TextStyle(fontSize: 16, color: Colors.white),
+                        currentSlide == slides.length - 1
+                            ? "Get Started"
+                            : "Next",
+                        style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(width: 8),
                       const Icon(Icons.chevron_right),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: finishOnboarding,
-                  child: const Text("Skip"),
-                ),
+
+                const SizedBox(height: 10),
               ],
             ),
           ),
@@ -210,4 +334,3 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
-

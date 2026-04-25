@@ -13,7 +13,7 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int currentIndex = 0;
 
-  final pages = [const HomePage(), const SummarizerPage(), const ChatPage()];
+  final pages = [const HomePage(), const PdfPage (), const ChatPage()];
 
   @override
   Widget build(BuildContext context) {

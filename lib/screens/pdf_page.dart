@@ -1,319 +1,529 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:ai_study_app/services/pdf_ai_service.dart';
 
-class SummarizerPage extends StatefulWidget {
-  const SummarizerPage({super.key});
+class PdfPage extends StatefulWidget {
+  const PdfPage({super.key});
 
   @override
-  State<SummarizerPage> createState() => _SummarizerPageState();
+  State<PdfPage> createState() => _PdfPageState();
 }
 
-class _SummarizerPageState extends State<SummarizerPage> {
+class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
+  final PdfAiService _service = PdfAiService();
+  final Random random = Random();
 
-  bool uploaded = false;
+  // States
+  bool _isLoading = false;
+  String _loadingMessage = '';
+  String? _pdfName;
+  String? _pdfSize;
+  String? _summary;
+  List<QuizQuestion>? _quiz;
+  bool _showQuiz = false;
 
-  void handleUpload() {
+  // Animations
+  late final AnimationController _orbController;
+  late final AnimationController _pulseController;
+  late final Animation<double> _orbAnimationY;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _orbController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 3))
+          ..repeat(reverse: true);
+    _orbAnimationY = Tween<double>(begin: -10, end: 10).animate(
+      CurvedAnimation(parent: _orbController, curve: Curves.easeInOut),
+    );
+    _pulseController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.9, end: 1.1).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _orbController.dispose();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleUpload() async {
     setState(() {
-      uploaded = true;
+      _isLoading = true;
+      _loadingMessage = '📤 جاري رفع الملف...';
+      _summary = null;
+      _quiz = null;
+      _pdfName = null;
+      _showQuiz = false;
     });
+
+    try {
+      final result = await _service.pickAndUploadPdf();
+
+      if (result == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      setState(() {
+        _pdfName = result['fileName'];
+        _pdfSize = result['fileSize'];
+        _loadingMessage = '🤖 جاري إنشاء الملخص...';
+      });
+
+      final summary = await _service.generateSummary(result['text']);
+
+      setState(() {
+        _summary = summary;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleGenerateQuiz() async {
+    if (_summary == null) return;
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = '📝 جاري إنشاء الأسئلة...';
+    });
+    try {
+      final quiz = await _service.generateQuiz(_summary!);
+      setState(() {
+        _quiz = quiz;
+        _showQuiz = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Widget _floatingParticles() {
+    return Stack(
+      children: List.generate(20, (i) => Positioned(
+        left: random.nextDouble() * MediaQuery.of(context).size.width,
+        top: random.nextDouble() * MediaQuery.of(context).size.height,
+        child: Container(
+          width: 4, height: 4,
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+        ),
+      )),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      // bottomNavigationBar: BottomNavigationBar(
-      //   currentIndex: 0,
-      //   items: const [
-      //     BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-      //     BottomNavigationBarItem(icon: Icon(Icons.quiz), label: "Quiz"),
-      //     BottomNavigationBarItem(icon: Icon(Icons.chat), label: "Chat"),
-      //   ],
-      // ),
-
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-
-            /// HEADER
-            Container(
-               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.blue,
-                    Colors.purple,
-                    Colors.teal
-                  ],
-                ),
-              ),
-
+      backgroundColor: const Color(0xFF0B0F2A),
+      body: Stack(
+        children: [
+          _floatingParticles(),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
-                  /// BACK BUTTON
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () {
-                      Navigator.pushNamed(context, "/home");
-                    },
+                  // Header
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(
+                              color: Colors.blue.withOpacity(0.4),
+                              blurRadius: 10,
+                            )],
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: const Icon(Icons.arrow_back_ios_new,
+                              color: Colors.white, size: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("AI Summarizer",
+                                style: TextStyle(color: Colors.white, fontSize: 22)),
+                            Text("Upload your PDF and get instant summaries",
+                                style: TextStyle(color: Colors.blueAccent)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
 
-                  const Text(
-                    "AI Summarizer",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                  // Body
+                  Expanded(
+                    child: _isLoading
+                        ? _buildLoading()
+                        : AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 400),
+                            child: _summary == null
+                                ? _uploadScreen()
+                                : _showQuiz && _quiz != null
+                                    ? _QuizView(
+                                        questions: _quiz!,
+                                        onUploadNew: () => setState(() {
+                                          _summary = null;
+                                          _quiz = null;
+                                          _showQuiz = false;
+                                        }),
+                                      )
+                                    : _summaryScreen(),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(color: Colors.blue),
+          const SizedBox(height: 20),
+          Text(_loadingMessage,
+              style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _uploadScreen() {
+    return GestureDetector(
+      key: const ValueKey('upload'),
+      onTap: _handleUpload,
+      child: Container(
+        width: double.infinity,
+        height: 350,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.blue.withOpacity(0.3), width: 2),
+          boxShadow: [BoxShadow(
+            color: Colors.blue.withOpacity(0.2),
+            blurRadius: 40, spreadRadius: 5,
+          )],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _orbAnimationY,
+              builder: (_, __) => Transform.translate(
+                offset: Offset(0, _orbAnimationY.value),
+                child: const Icon(Icons.file_present, color: Colors.blue, size: 60),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text("Click to upload PDF",
+                style: TextStyle(color: Colors.white, fontSize: 16)),
+            const SizedBox(height: 6),
+            const Text("Max file size: 10MB",
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryScreen() {
+    return SingleChildScrollView(
+      key: const ValueKey('summary'),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // File Card
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 50, height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(Icons.picture_as_pdf,
+                        color: Colors.red, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_pdfName ?? 'ملف PDF',
+                            style: const TextStyle(color: Colors.white),
+                            overflow: TextOverflow.ellipsis),
+                        Text(_pdfSize ?? '',
+                            style: const TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 4),
+                        const Text("Uploaded successfully",
+                            style: TextStyle(color: Colors.green, fontSize: 12)),
+                      ],
                     ),
                   ),
-
-                  const SizedBox(height: 5),
-
-                  const Text(
-                    "Upload your PDF and get instant summaries",
-                    style: TextStyle(color: Colors.white70),
-                  )
                 ],
               ),
             ),
 
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: uploaded ? buildSummarySection() : buildUploadSection(),
-            )
+            // Summary Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("📄 الملخص",
+                      style: TextStyle(color: Colors.blue, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Text(_summary!,
+                      style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.6)),
+                  const SizedBox(height: 20),
+
+                  // Buttons
+                  ElevatedButton(
+                    onPressed: () => setState(() {
+                      _summary = null;
+                      _quiz = null;
+                      _showQuiz = false;
+                    }),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                    ),
+                    child: const Text("Upload New",
+                        style: TextStyle(fontSize: 16)),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ElevatedButton(
+                    onPressed: _handleGenerateQuiz,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                    ),
+                    child: const Text("Generate Quiz",
+                        style: TextStyle(fontSize: 16)),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  /// =========================
-  /// UPLOAD SECTION
-  /// =========================
+// ─────────────────────────────────────────────
+// Quiz View
+// ─────────────────────────────────────────────
+class _QuizView extends StatefulWidget {
+  final List<QuizQuestion> questions;
+  final VoidCallback onUploadNew;
 
-  Widget buildUploadSection() {
+  const _QuizView({required this.questions, required this.onUploadNew});
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+  @override
+  State<_QuizView> createState() => _QuizViewState();
+}
 
-      elevation: 6,
+class _QuizViewState extends State<_QuizView> {
+  final Map<int, int> _answers = {};
+  bool _submitted = false;
 
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+  int get _score => _answers.entries
+      .where((e) => e.value == widget.questions[e.key].correctIndex)
+      .length;
 
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text("🎯 الاختبار",
+                style: TextStyle(color: Colors.white, fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
 
-            const Icon(Icons.upload_file, size: 60, color: Colors.blue),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              "Upload Your Study Material",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            const Text(
-              "Drag and drop or click to upload PDF files",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-
-            const SizedBox(height: 30),
-
-            /// UPLOAD BUTTON
-            GestureDetector(
-              onTap: handleUpload,
-
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.blue.shade200,
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-
+            ...widget.questions.asMap().entries.map((entry) {
+              final i = entry.key;
+              final q = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 20),
                 child: Column(
-                  children: const [
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${i + 1}. ${q.question}',
+                        style: const TextStyle(color: Colors.white,
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    ...q.options.asMap().entries.map((opt) {
+                      final isSelected = _answers[i] == opt.key;
+                      final isCorrect = opt.key == q.correctIndex;
 
-                    Icon(Icons.picture_as_pdf,
-                        size: 60, color: Colors.blue),
+                      Color borderColor = Colors.grey.shade700;
+                      Color bgColor = Colors.transparent;
 
-                    SizedBox(height: 10),
+                      if (_submitted) {
+                        if (isCorrect) {
+                          borderColor = Colors.green;
+                          bgColor = Colors.green.withOpacity(0.15);
+                        } else if (isSelected) {
+                          borderColor = Colors.red;
+                          bgColor = Colors.red.withOpacity(0.15);
+                        }
+                      } else if (isSelected) {
+                        borderColor = Colors.blue;
+                        bgColor = Colors.blue.withOpacity(0.15);
+                      }
 
-                    Text(
-                      "Click to upload PDF",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
-
-                    SizedBox(height: 5),
-
-                    Text(
-                      "Max file size: 10MB",
-                      style: TextStyle(color: Colors.grey),
-                    )
+                      return GestureDetector(
+                        onTap: _submitted
+                            ? null
+                            : () => setState(() => _answers[i] = opt.key),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(opt.value,
+                                  style: const TextStyle(color: Colors.white))),
+                              if (_submitted && isCorrect)
+                                const Icon(Icons.check_circle,
+                                    color: Colors.green, size: 18),
+                              if (_submitted && isSelected && !isCorrect)
+                                const Icon(Icons.cancel,
+                                    color: Colors.red, size: 18),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
                   ],
                 ),
+              );
+            }),
+
+            const SizedBox(height: 8),
+
+            if (!_submitted)
+              ElevatedButton(
+                onPressed: _answers.length == widget.questions.length
+                    ? () => setState(() => _submitted = true)
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  disabledBackgroundColor: Colors.grey.shade800,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                ),
+                child: const Text("تسليم الإجابات",
+                    style: TextStyle(fontSize: 16)),
               ),
-            ),
 
-            const SizedBox(height: 20),
-
-            const ListTile(
-              leading: Icon(Icons.check_circle, color: Colors.green),
-              title: Text("Supports PDF, DOC, DOCX formats"),
-            ),
-
-            const ListTile(
-              leading: Icon(Icons.check_circle, color: Colors.green),
-              title: Text("AI-powered key point extraction"),
-            ),
-
-            const ListTile(
-              leading: Icon(Icons.check_circle, color: Colors.green),
-              title: Text("Instant summary generation"),
-            ),
+            if (_submitted) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '🏆 نتيجتك: $_score / ${widget.questions.length}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.green, fontSize: 20,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: widget.onUploadNew,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                ),
+                child: const Text("Upload New", style: TextStyle(fontSize: 16)),
+              ),
+            ],
           ],
         ),
       ),
-    );
-  }
-
-  /// =========================
-  /// SUMMARY SECTION
-  /// =========================
-
-  Widget buildSummarySection() {
-
-    return Column(
-      children: [
-
-        /// FILE INFO
-        Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-
-          child: ListTile(
-            leading: const Icon(Icons.picture_as_pdf, color: Colors.green),
-            title: const Text("Data_Structures_Chapter_3.pdf"),
-            subtitle: const Text("2.4 MB • Uploaded successfully"),
-            trailing: const Icon(Icons.check_circle, color: Colors.green),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        /// SUMMARY
-        Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-
-                Text(
-                  "AI Summary",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                SizedBox(height: 15),
-
-                Text("Key Concepts",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-
-                SizedBox(height: 5),
-
-                Text(
-                    "• Binary Trees: hierarchical structure with two children"),
-
-                Text(
-                    "• Traversal Methods: In-order, Pre-order, Post-order"),
-
-                Text(
-                    "• Time Complexity: O(log n) balanced trees"),
-
-                SizedBox(height: 15),
-
-                Text("Important Definitions",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-
-                Text(
-                    "Balanced Tree: height difference ≤ 1"),
-
-                Text(
-                    "Leaf Node: node without children"),
-
-                SizedBox(height: 15),
-
-                Text("Practice Questions",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-
-                Text(
-                    "• What is the maximum nodes at level k in binary tree?"),
-
-                Text(
-                    "• Difference between complete and full binary tree"),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        /// ACTION BUTTONS
-        Row(
-          children: [
-
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, "/quiz");
-                },
-                child: const Text("Generate Quiz"),
-              ),
-            ),
-
-            const SizedBox(width: 10),
-
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    uploaded = false;
-                  });
-                },
-                child: const Text("Upload New"),
-              ),
-            ),
-          ],
-        )
-      ],
     );
   }
 }

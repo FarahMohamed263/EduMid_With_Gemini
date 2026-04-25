@@ -1,11 +1,14 @@
+import 'dart:async';
+import 'package:ai_study_app/screens/pdf_page.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_study_app/screens/home_screen.dart'; // رابط الصفحة الصحيحة
 
 class Message {
-  final int id;
+  final String id;
   final String text;
-  final bool isUser;
+  final bool isAI;
 
-  Message({required this.id, required this.text, required this.isUser});
+  Message({required this.id, required this.text, required this.isAI});
 }
 
 class ChatPage extends StatefulWidget {
@@ -16,256 +19,226 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  List<Message> messages = [
+    Message(
+      id: '1',
+      text:
+          "Hello! I'm your AI study assistant. I can help you understand your course material.",
+      isAI: true,
+    ),
+    Message(
+      id: '2',
+      text: 'Can you help me understand quantum physics?',
+      isAI: false,
+    ),
+    Message(
+      id: '3',
+      text:
+          "Of course! Quantum physics is a fascinating field. What do you want to explore?",
+      isAI: true,
+    ),
+  ];
 
   final TextEditingController controller = TextEditingController();
 
-  List<Message> messages = [
-    Message(
-      id: 1,
-      text:
-          "Hello! I'm your AI study assistant. I can help you understand your course material.",
-      isUser: false,
-    )
-  ];
-
-  bool isTyping = false;
-
-  void sendMessage() {
-
-    if (controller.text.trim().isEmpty) return;
-
-    final userMessage = Message(
-      id: messages.length + 1,
-      text: controller.text,
-      isUser: true,
-    );
+  void handleSendMessage(String text) {
+    if (text.trim().isEmpty) return;
 
     setState(() {
-      messages.add(userMessage);
-      isTyping = true;
+      messages.add(
+        Message(
+          id: DateTime.now().toString(),
+          text: text,
+          isAI: false,
+        ),
+      );
     });
 
     controller.clear();
 
-    Future.delayed(const Duration(milliseconds: 1500), () {
-
-      final aiMessage = Message(
-        id: messages.length + 1,
-        text:
-            "Based on your notes about binary trees, I can explain that concept.",
-        isUser: false,
-      );
+    Timer(const Duration(seconds: 1), () {
+      List<String> responses = [
+        "That's a great question! Let me explain...",
+        "I can help you with that 👌",
+        "Excellent question!",
+        "Let me simplify it for you...",
+      ];
 
       setState(() {
-        messages.add(aiMessage);
-        isTyping = false;
+        messages.add(
+          Message(
+            id: DateTime.now().toString(),
+            text: responses[
+                DateTime.now().millisecond % responses.length],
+            isAI: true,
+          ),
+        );
       });
-
     });
-
   }
 
-  @override
-  Widget build(BuildContext context) {
-
-    return Scaffold(
-
-      backgroundColor: Colors.grey.shade100,
-
-      body: Column(
-        children: [
-
-          /// HEADER
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.only(
-              top: 60,
-              left: 20,
-              right: 20,
-              bottom: 30,
-            ),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.blue,
-                  Colors.purple,
-                  Colors.teal,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-
-                const SizedBox(height: 10),
-
-                Row(
-                  children: [
-
-                    Container(
-                      width: 45,
-                      height: 45,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.2),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: const Icon(Icons.auto_awesome, color: Colors.white),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-
-                        Text(
-                          "AI Study Chat",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        Text(
-                          "Always here to help",
-                          style: TextStyle(
-                            color: Colors.white70,
-                          ),
-                        )
-
-                      ],
-                    )
-
-                  ],
-                )
-
-              ],
-            ),
-          ),
-
-          /// MESSAGES
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: messages.length + (isTyping ? 1 : 0),
-              itemBuilder: (context, index) {
-
-                if (index >= messages.length) {
-                  return typingIndicator();
-                }
-
-                final message = messages[index];
-
-                return Align(
-                  alignment:
-                      message.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(16),
-                    constraints: const BoxConstraints(maxWidth: 280),
-                    decoration: BoxDecoration(
-                      color: message.isUser ? Colors.blue : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 10,
-                          color: Colors.black.withOpacity(.05),
-                        )
-                      ],
-                    ),
-                    child: Text(
-                      message.text,
-                      style: TextStyle(
-                        color: message.isUser ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  ),
-                );
-
-              },
-            ),
-          ),
-
-          /// INPUT
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 10,
-                  color: Colors.black.withOpacity(.05),
-                )
-              ],
-            ),
-            child: Row(
-              children: [
-
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      hintText: "Ask me anything...",
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                GestureDetector(
-                  onTap: sendMessage,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Colors.blue,
-                          Colors.purple,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: const Icon(Icons.send, color: Colors.white),
-                  ),
-                )
-
-              ],
-            ),
-          ),
-
-        ],
-      ),
+  void goBackHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const HomePage()),
+      (route) => false,
     );
   }
 
-  Widget typingIndicator() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Text("Typing..."),
+  void goToPDF() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const PdfPage (),
+    ),
+  );
+}
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF050816),
+      body: Stack(
+        children: [
+          /// Gradient Background
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0B0F2A), Color(0xFF050816)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+
+          /// Main Content
+          SafeArea(
+            child: Column(
+              children: [
+                /// 🔹 Header
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          /// 🔙 BACK BUTTON
+                          GestureDetector(
+                            onTap: goBackHome,
+                            child: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                          ),
+
+                          /// 📄 PDF Button
+                          GestureDetector(
+                            onTap: goToPDF,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white10,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.description,
+                                  color: Colors.blue),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      Row(
+                        children: const [
+                          Icon(Icons.auto_awesome, color: Colors.blue),
+                          SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("AI Study Chat",
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 20)),
+                              Text("Always here to help",
+                                  style: TextStyle(color: Colors.grey)),
+                            ],
+                          )
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                /// 💬 CHAT LIST
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+
+                      return Align(
+                        alignment: msg.isAI
+                            ? Alignment.centerLeft
+                            : Alignment.centerRight,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(12),
+                          constraints:
+                              const BoxConstraints(maxWidth: 250),
+                          decoration: BoxDecoration(
+                            color: msg.isAI
+                                ? Colors.white10
+                                : Colors.blue,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            msg.text,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                /// ✏️ INPUT
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          style:
+                              const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: "Type a message...",
+                            hintStyle:
+                                const TextStyle(color: Colors.grey),
+                            filled: true,
+                            fillColor: Colors.white10,
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: () =>
+                            handleSendMessage(controller.text),
+                        child: const Icon(Icons.send,
+                            color: Colors.blue),
+                      )
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

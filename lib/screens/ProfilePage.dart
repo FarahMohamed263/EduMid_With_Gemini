@@ -1,3 +1,7 @@
+import 'package:ai_study_app/screens/About-info.dart';
+import 'package:ai_study_app/screens/Help_Screen.dart';
+import 'package:ai_study_app/screens/Notifications_Screen.dart';
+
 import 'EditProfileScreen .dart';
 import 'AcademicInfo.dart';
 import 'package:ai_study_app/screens/login_screen.dart';
@@ -14,6 +18,7 @@ class _ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
   bool _isHoverLogout = false;
   bool _isDarkMode = true;
+  String _selectedLanguage = 'English'; // Default language
   late AnimationController _particleController;
   final List<Particle> _particles = [];
 
@@ -61,6 +66,52 @@ class _ProfilePageState extends State<ProfilePage>
         );
       },
       child: child,
+    );
+  }
+
+  void _showLanguageDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Select Language',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _LanguageOption(
+                language: 'English',
+                flag: '🇺🇸',
+                isSelected: _selectedLanguage == 'English',
+                onTap: () {
+                  setState(() => _selectedLanguage = 'English');
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 12),
+              _LanguageOption(
+                language: 'العربية',
+                flag: '🇪🇬',
+                isSelected: _selectedLanguage == 'العربية',
+                onTap: () {
+                  setState(() => _selectedLanguage = 'العربية');
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -275,9 +326,18 @@ class _ProfilePageState extends State<ProfilePage>
                       _GlassmorphismSection(
                         title: 'Preferences',
                         items: [
-                          const _MenuItem(
+                          _MenuItem(
                             icon: Icons.notifications,
                             label: 'Notifications',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const NotificationsScreen(),
+                                ),
+                              );
+                            },
                           ),
                           _MenuItem(
                             icon: Icons.dark_mode,
@@ -287,9 +347,11 @@ class _ProfilePageState extends State<ProfilePage>
                             onToggle: () =>
                                 setState(() => _isDarkMode = !_isDarkMode),
                           ),
-                          const _MenuItem(
+                          _MenuItem(
                             icon: Icons.language,
                             label: 'Language',
+                            subtitle: _selectedLanguage,
+                            onTap: _showLanguageDialog,
                           ),
                         ],
                       ),
@@ -302,9 +364,31 @@ class _ProfilePageState extends State<ProfilePage>
                     _animatedWithFade(
                       _GlassmorphismSection(
                         title: 'Support',
-                        items: const [
-                          _MenuItem(icon: Icons.info, label: 'about app'),
-                          _MenuItem(icon: Icons.help, label: 'help'),
+                        items: [
+                          _MenuItem(
+                            icon: Icons.info,
+                            label: 'about app',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const AppInfoScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          _MenuItem(
+                            icon: Icons.help,
+                            label: 'help',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HelpScreen(),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                       600,
@@ -504,6 +588,7 @@ class _GlassmorphismSection extends StatelessWidget {
 class _MenuItem extends StatefulWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final bool hasToggle;
   final bool isToggled;
   final VoidCallback? onToggle;
@@ -512,6 +597,7 @@ class _MenuItem extends StatefulWidget {
   const _MenuItem({
     required this.icon,
     required this.label,
+    this.subtitle,
     this.hasToggle = false,
     this.isToggled = false,
     this.onToggle,
@@ -566,9 +652,26 @@ class _MenuItemState extends State<_MenuItem> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      widget.label,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
+                        if (widget.subtitle != null)
+                          Text(
+                            widget.subtitle!,
+                            style: const TextStyle(
+                              color: Color(0xFF9CA3AF),
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   if (widget.hasToggle)
@@ -610,6 +713,69 @@ class _MenuItemState extends State<_MenuItem> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageOption extends StatelessWidget {
+  final String language;
+  final String flag;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _LanguageOption({
+    required this.language,
+    required this.flag,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: isSelected
+                ? const Color(0xFF3B82F6).withOpacity(0.2)
+                : Colors.white.withOpacity(0.05),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF3B82F6)
+                  : Colors.white.withOpacity(0.1),
+            ),
+          ),
+          child: Row(
+            children: [
+              Text(flag, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  language,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+              if (isSelected)
+                const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF3B82F6),
+                  size: 20,
+                ),
+            ],
           ),
         ),
       ),

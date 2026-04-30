@@ -46,12 +46,21 @@ dependencies:
   #firebase_storage: ^13.1.0
   file_picker: ^8.1.7
   firebase_ai: ^3.9.0
-  syncfusion_flutter_pdf: ^27.1.48
+  syncfusion_flutter_pdf: ^33.2.4
   uuid: ^4.3.3
+
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+  flutter_gen: ^5.14.1
+
+flutter_intl:
+  enabled: true
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.12.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -65,10 +74,22 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/app_icon.png
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon.png
+  adaptive_icon_background: "#00000000"
+  adaptive_icon_foreground: assets/app_icon.png
+  remove_alpha_ios: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:

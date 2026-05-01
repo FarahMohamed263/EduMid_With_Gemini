@@ -44,19 +44,28 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   /// ================= Google =================
-  Future<UserCredential?> signInWithGoogle() async {
-    final GoogleSignInAccount? user = await GoogleSignIn().signIn();
-    if (user == null) return null;
+Future<UserCredential?> signInWithGoogle() async {
+  final GoogleSignIn googleSignIn = GoogleSignIn();
 
-    final auth = await user.authentication;
+  // فتح تسجيل الدخول
+  final GoogleSignInAccount? user = await googleSignIn.signIn();
 
-    final credential = GoogleAuthProvider.credential(
-      accessToken: auth.accessToken,
-      idToken: auth.idToken,
-    );
+  if (user == null) return null;
 
-    return await FirebaseAuth.instance.signInWithCredential(credential);
-  }
+  // الحصول على التوكن
+  final GoogleSignInAuthentication auth =
+      await user.authentication;
+
+  // إنشاء credential للفirebase
+  final credential = GoogleAuthProvider.credential(
+    accessToken: auth.accessToken,
+    idToken: auth.idToken,
+  );
+
+  // تسجيل الدخول في Firebase
+  return await FirebaseAuth.instance
+      .signInWithCredential(credential);
+}
 
   /// ================= Theme Toggle =================
   void _toggleTheme() async {

@@ -30,21 +30,22 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^4.5.0
+  firebase_core: ^4.7.0
   firebase_auth: ^6.2.0
-  google_sign_in: ^6.1.0
+  google_sign_in: ^6.2.1
   shared_preferences: ^2.5.4
-  fl_chart: ^0.68.0
+  fl_chart: ^1.2.0
   image_picker: ^1.1.2
+  cloud_firestore: ^6.1.3
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons:
     ^1.0.8
 
-    # ✅ أضف الـ 4 دول
+
   #firebase_storage: ^13.1.0
-  file_picker: ^8.1.7
+  file_picker: ^8.1.2
   firebase_ai: ^3.9.0
   syncfusion_flutter_pdf: ^33.2.4
   uuid: ^4.3.3
@@ -60,7 +61,7 @@ flutter_intl:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -68,13 +69,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-flutter_icons:
-  android: true
-  ios: true
-  image_path: "assets/icon.png"
-  remove_alpha_ios: true
-  adaptive_icon_background: "#00000000"
-  adaptive_icon_foreground: "assets/icon.png"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -87,8 +82,15 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/icon.png
+    - assets/app_icon.png
 
+flutter_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon.png
+  adaptive_icon_background: "#00000000"
+  adaptive_icon_foreground: assets/app_icon.png
+  remove_alpha_ios: true
 
   # To add assets to your application, add an assets section, like this:
   # assets:

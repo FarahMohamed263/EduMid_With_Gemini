@@ -1,8 +1,11 @@
 import 'dart:math';
+import 'dart:io';
 
 import 'package:ai_study_app/app_palette.dart';
-import 'package:ai_study_app/screens/AcademicInfo.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../l10n/app_localizations.dart';
 
 class PersonalInfoScreen extends StatefulWidget {
@@ -14,6 +17,7 @@ class PersonalInfoScreen extends StatefulWidget {
 
 class _PersonalInfoScreenState extends State<PersonalInfoScreen>
     with TickerProviderStateMixin {
+
   final Map<String, String> formData = {
     'fullName': '',
     'username': '',
@@ -25,201 +29,64 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
   String ageError = '';
   String phoneError = '';
   String sexError = '';
+
   final Random random = Random();
 
-  bool get isAgeValid {
-    final age = int.tryParse(formData['age'] ?? '');
-    return age != null && age >= 1 && age <= 120 && ageError.isEmpty;
-  }
+  // 🟢 image picker
+  final ImagePicker _picker = ImagePicker();
+  String? _imagePath;
 
-  bool get isPhoneValid {
-    final phone = formData['phoneNumber'] ?? '';
-    return phone.isNotEmpty && phoneError.isEmpty;
-  }
+  Future<void> pickImage() async {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
 
-  bool get isSexValid {
-    return (formData['sex'] ?? '').isNotEmpty;
-  }
+    if (image == null) return;
 
-  void handleAgeChange(String value) {
     setState(() {
-      formData['age'] = value;
-
-      if (value.isEmpty) {
-        ageError = '';
-      } else {
-        final age = int.tryParse(value);
-        if (age == null) {
-          ageError = AppLocalizations.of(context)!.pleaseEnterValidAge;
-        } else if (age < 1 || age > 120) {
-          ageError = AppLocalizations.of(context)!.ageMustBeBetween;
-        } else {
-          ageError = '';
-        }
-      }
+      _imagePath = image.path;
     });
   }
 
-  void handlePhoneChange(String value) {
-    setState(() {
-      formData['phoneNumber'] = value;
+Future<void> saveData() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
 
-      if (value.isEmpty) {
-        phoneError = '';
-      } else if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(value)) {
-        phoneError = AppLocalizations.of(context)!.pleaseEnterValidPhone;
-      } else {
-        phoneError = '';
-      }
-    });
-  }
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User not logged in")),
+      );
+      return;
+    }
 
-  void handleSexChange(String value) {
-    setState(() {
-      formData['sex'] = value;
-      sexError = value.isEmpty
-          ? AppLocalizations.of(context)!.pleaseSelectYourSex
-          : '';
-    });
-  }
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'fullName': formData['fullName'],
+      'username': formData['username'],
+      'age': formData['age'],
+      'phone': formData['phoneNumber'],
+      'sex': formData['sex'],
+      'imagePath': _imagePath ?? '', // مؤقت
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-  void goToAcademicInfo() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AcademicScreen()),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Saved to Firestore ✅")),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Error: $e")),
     );
   }
-
-  void showSexPicker() {
-    final palette = AppPalette.of(context);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: palette.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(palette.isDark ? 0.35 : 0.10),
-                blurRadius: 24,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 48,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: palette.border,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  AppLocalizations.of(context)!.selectSex,
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildSexOption(
-                  'male',
-                  AppLocalizations.of(context)!.male,
-                  Icons.male_rounded,
-                ),
-                const SizedBox(height: 10),
-                _buildSexOption(
-                  'female',
-                  AppLocalizations.of(context)!.female,
-                  Icons.female_rounded,
-                ),
-                const SizedBox(height: 10),
-                _buildSexOption(
-                  'other',
-                  AppLocalizations.of(context)!.other,
-                  Icons.person_rounded,
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSexOption(String value, String label, IconData icon) {
-    final palette = AppPalette.of(context);
-    final isSelected = formData['sex'] == value;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () {
-          handleSexChange(value);
-          Navigator.pop(context);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? palette.primary.withOpacity(palette.isDark ? 0.20 : 0.12)
-                : palette.surfaceAlt,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isSelected ? palette.primary : palette.border,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: palette.primary.withOpacity(
-                    palette.isDark ? 0.18 : 0.12,
-                  ),
-                ),
-                child: Icon(icon, color: palette.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (isSelected)
-                Icon(Icons.check_circle, color: palette.primary, size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+}
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
@@ -241,10 +108,53 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
                   header(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
+
+                  // 🟢 صورة البروفايل
+                  Center(
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 55,
+                          backgroundColor: palette.surfaceAlt,
+                          backgroundImage: _imagePath == null
+                              ? null
+                              : FileImage(File(_imagePath!)),
+                          child: _imagePath == null
+                              ? Icon(Icons.person, size: 40, color: palette.primary)
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: pickImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: palette.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
                   formCard(),
+
                   const SizedBox(height: 40),
+
                   Center(
                     child: Text(
                       AppLocalizations.of(context)!.poweredByEduMindAI,
@@ -254,7 +164,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -311,36 +220,47 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
         color: palette.surface,
         border: Border.all(color: palette.border),
         borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(palette.isDark ? 0.24 : 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildField(
-            AppLocalizations.of(context)!.fullName,
-            'fullName',
-            AppLocalizations.of(context)!.enterYourFullName,
-          ),
+          buildField(AppLocalizations.of(context)!.fullName, 'fullName',
+              AppLocalizations.of(context)!.enterYourFullName),
           const SizedBox(height: 16),
-          buildField(
-            AppLocalizations.of(context)!.username,
-            'username',
-            AppLocalizations.of(context)!.enterYourUsername,
-          ),
+          buildField(AppLocalizations.of(context)!.username, 'username',
+              AppLocalizations.of(context)!.enterYourUsername),
           const SizedBox(height: 16),
-          buildAgeField(),
+          buildField(AppLocalizations.of(context)!.age, 'age',
+              AppLocalizations.of(context)!.enterYourAge),
           const SizedBox(height: 16),
-          buildPhoneField(),
+          buildField(AppLocalizations.of(context)!.phoneNumber, 'phoneNumber',
+              AppLocalizations.of(context)!.enterYourPhoneNumber),
           const SizedBox(height: 16),
           buildSexDropdown(),
           const SizedBox(height: 28),
-          nextButton(),
+
+          // 🔴 زرار Save بدل Next
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: saveData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                "Save",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -351,303 +271,66 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: palette.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        Text(label,
+            style: TextStyle(color: palette.textPrimary, fontSize: 14)),
         const SizedBox(height: 8),
         TextField(
           onChanged: (value) => setState(() => formData[key] = value),
-          style: TextStyle(color: palette.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: placeholder,
-            hintStyle: TextStyle(color: palette.textSecondary, fontSize: 14),
             filled: true,
             fillColor: palette.surfaceAlt,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.primary, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
             ),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget buildAgeField() {
-    final palette = AppPalette.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          AppLocalizations.of(context)!.age,
-          style: TextStyle(
-            color: palette.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          keyboardType: TextInputType.number,
-          onChanged: handleAgeChange,
-          style: TextStyle(color: palette.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: AppLocalizations.of(context)!.enterYourAge,
-            hintStyle: TextStyle(color: palette.textSecondary, fontSize: 14),
-            filled: true,
-            fillColor: palette.surfaceAlt,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.primary, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-        if (ageError.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              ageError,
-              style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget buildPhoneField() {
-    final palette = AppPalette.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          AppLocalizations.of(context)!.phoneNumber,
-          style: TextStyle(
-            color: palette.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          keyboardType: TextInputType.phone,
-          onChanged: handlePhoneChange,
-          style: TextStyle(color: palette.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: AppLocalizations.of(context)!.enterYourPhoneNumber,
-            hintStyle: TextStyle(color: palette.textSecondary, fontSize: 14),
-            filled: true,
-            fillColor: palette.surfaceAlt,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: palette.primary, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-        if (phoneError.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              phoneError,
-              style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-            ),
-          ),
       ],
     );
   }
 
   Widget buildSexDropdown() {
     final palette = AppPalette.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          AppLocalizations.of(context)!.sex,
-          style: TextStyle(
-            color: palette.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+    return InkWell(
+      onTap: showSexPicker,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: palette.surfaceAlt,
+          borderRadius: BorderRadius.circular(16),
         ),
-        const SizedBox(height: 8),
-        InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: showSexPicker,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: palette.surfaceAlt,
-              border: Border.all(
-                color: sexError.isNotEmpty
-                    ? const Color(0xFFEF4444)
-                    : palette.border,
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: palette.primary.withOpacity(
-                      palette.isDark ? 0.18 : 0.12,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.person_outline_rounded,
-                    color: palette.primary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    formData['sex']!.isEmpty
-                        ? AppLocalizations.of(context)!.chooseYourSex
-                        : formData['sex']![0].toUpperCase() +
-                              formData['sex']!.substring(1),
-                    style: TextStyle(
-                      color: formData['sex']!.isEmpty
-                          ? palette.textSecondary
-                          : palette.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: palette.textSecondary,
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (sexError.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              sexError,
-              style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-            ),
-          ),
-      ],
+        child: Text(formData['sex']!.isEmpty
+            ? "Choose your sex"
+            : formData['sex']!),
+      ),
     );
   }
 
-  Widget nextButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: goToAcademicInfo,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppPalette.of(context).primary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 0,
-        ),
-        child: Text(
-          AppLocalizations.of(context)!.next,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+  void showSexPicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: const Text("Male"), onTap: () {
+            setState(() => formData['sex'] = 'male');
+            Navigator.pop(context);
+          }),
+          ListTile(title: const Text("Female"), onTap: () {
+            setState(() => formData['sex'] = 'female');
+            Navigator.pop(context);
+          }),
+        ],
       ),
     );
   }
 }
 
-class Particles extends StatefulWidget {
+class Particles extends StatelessWidget {
   const Particles({super.key});
 
   @override
-  State<Particles> createState() => _ParticlesState();
-}
-
-class _ParticlesState extends State<Particles>
-    with SingleTickerProviderStateMixin {
-  late AnimationController controller;
-
-  @override
-  void initState() {
-    controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat();
-    super.initState();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (_, __) {
-        return CustomPaint(painter: ParticlePainter(), child: Container());
-      },
-    );
+    return Container();
   }
-}
-
-class ParticlePainter extends CustomPainter {
-  final rand = Random();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.blue.withOpacity(0.3);
-
-    for (int i = 0; i < 20; i++) {
-      final x = rand.nextDouble() * size.width;
-      final y = rand.nextDouble() * size.height;
-      canvas.drawCircle(Offset(x, y), 2, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

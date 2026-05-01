@@ -1,16 +1,18 @@
 import 'package:ai_study_app/screens/About-info.dart';
+import 'package:ai_study_app/screens/AcademicInfo.dart';
 import 'package:ai_study_app/screens/Help_Screen.dart';
 import 'package:ai_study_app/screens/PersonalInfo.dart';
 import 'package:ai_study_app/screens/notifications-screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../l10n/app_localizations.dart' show AppLocalizations;
-import 'EditProfileScreen .dart';
 import 'package:ai_study_app/screens/login_screen.dart';
 import 'package:ai_study_app/theme_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../localization_helper.dart';
+import '../services/user_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -22,9 +24,16 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
   bool _isHoverLogout = false;
-  String _selectedLanguage = 'English'; // Default language
+  String _selectedLanguage = 'English';
   late AnimationController _particleController;
   final List<Particle> _particles = [];
+
+  // ===== User Data =====
+  String _displayName = '';
+  String _displayEmail = '';
+  String _displayInitials = 'U';
+  String _gpa = '0.0';
+  bool _isLoadingProfile = true;
 
   @override
   void initState() {
@@ -34,12 +43,11 @@ class _ProfilePageState extends State<ProfilePage>
       duration: const Duration(seconds: 10),
     )..repeat();
 
-    // Initialize particles
     for (int i = 0; i < 30; i++) {
       _particles.add(
         Particle(
           id: i,
-          x: (i * 37) % 100.0, // Distribute evenly
+          x: (i * 37) % 100.0,
           y: (i * 73) % 100.0,
           delay: i * 0.2,
           duration: 10 + (i % 10),
@@ -47,14 +55,52 @@ class _ProfilePageState extends State<ProfilePage>
       );
     }
 
-    // Set initial language
     _selectedLanguage = localeNotifier.value.languageCode == 'ar'
         ? 'العربية'
         : 'English';
 
-    // Listen to locale changes
     localeNotifier.addListener(_onLocaleChanged);
+    _loadProfile();
   }
+
+
+Future<void> _loadProfile() async {
+  final data = await UserService.getUserData();
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (!mounted) return;
+
+  final firestoreName =
+      (data?['fullName'] ?? '').toString().trim();
+
+  final firebaseName =
+      (user?.displayName ?? '').toString().trim();
+
+  final finalName = firestoreName.isNotEmpty
+      ? firestoreName
+      : firebaseName.isNotEmpty
+          ? firebaseName
+          : 'User';
+
+  setState(() {
+    _displayName = finalName;
+
+    _displayEmail = user?.email ?? '';
+
+    _displayInitials = finalName.isNotEmpty
+        ? finalName
+            .split(' ')
+            .where((e) => e.isNotEmpty)
+            .map((e) => e[0].toUpperCase())
+            .take(2)
+            .join()
+        : 'U';
+
+    _gpa = (data?['gpa'] ?? '0.0').toString();
+
+    _isLoadingProfile = false;
+  });
+}
 
   void _onLocaleChanged() {
     setState(() {
@@ -101,7 +147,7 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           title: Text(
             AppLocalizations.of(context)!.selectLanguage,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -146,30 +192,25 @@ class _ProfilePageState extends State<ProfilePage>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgTop = isDark ? const Color(0xFF0B0F2A) : Colors.white;
-    final bgBottom = isDark ? const Color(0xFF050816) : const Color(0xFFF8FAFC);
+    final bgBottom =
+        isDark ? const Color(0xFF050816) : const Color(0xFFF8FAFC);
     final panelBg = isDark ? Colors.white.withOpacity(0.04) : Colors.white;
-    final panelBorder = isDark
-        ? Colors.white.withOpacity(0.12)
-        : Colors.grey.shade300;
-    final subtlePanelBg = isDark
-        ? Colors.white.withOpacity(0.05)
-        : const Color(0xFFF8FAFC);
-    final subtlePanelBorder = isDark
-        ? Colors.white.withOpacity(0.1)
-        : Colors.grey.shade300;
-    final primaryBlue = isDark
-        ? const Color(0xFF3B82F6)
-        : const Color(0xFF2563EB);
+    final panelBorder =
+        isDark ? Colors.white.withOpacity(0.12) : Colors.grey.shade300;
+    final subtlePanelBg =
+        isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF8FAFC);
+    final subtlePanelBorder =
+        isDark ? Colors.white.withOpacity(0.1) : Colors.grey.shade300;
+    final primaryBlue =
+        isDark ? const Color(0xFF3B82F6) : const Color(0xFF2563EB);
     final textPrimary = isDark ? Colors.white : Colors.black87;
-    final textSecondary = isDark
-        ? const Color(0xFF9CA3AF)
-        : Colors.grey.shade700;
+    final textSecondary =
+        isDark ? const Color(0xFF9CA3AF) : Colors.grey.shade700;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // Gradient Background
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -180,7 +221,6 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           ),
 
-          // Floating Particles
           ..._particles.map(
             (particle) => AnimatedBuilder(
               animation: _particleController,
@@ -191,9 +231,9 @@ class _ProfilePageState extends State<ProfilePage>
                 final scale = 1.0 + 0.5 * (1 - (time % 1.0));
 
                 return Positioned(
-                  left: MediaQuery.of(context).size.width * particle.x / 100,
-                  top:
-                      MediaQuery.of(context).size.height * particle.y / 100 +
+                  left:
+                      MediaQuery.of(context).size.width * particle.x / 100,
+                  top: MediaQuery.of(context).size.height * particle.y / 100 +
                       yOffset,
                   child: Opacity(
                     opacity: opacity.clamp(0.0, 1.0),
@@ -214,408 +254,442 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           ),
 
-          // Main Content
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                child: Column(
-                  children: [
-                    // Profile Header + Stats Block
-                    _animatedWithFade(
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(28),
-                          color: panelBg,
-                          border: Border.all(color: panelBorder),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.25),
-                              blurRadius: 24,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          children: [
+            child: _isLoadingProfile
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      child: Column(
+                        children: [
+                          // Profile Header
+                          _animatedWithFade(
                             Container(
-                              margin: const EdgeInsets.only(bottom: 20),
-                              child: AnimatedContainer(
-                                duration: const Duration(seconds: 2),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryBlue.withOpacity(0.5),
-                                      blurRadius: 24,
-                                      spreadRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                                child: Container(
-                                  width: 112,
-                                  height: 112,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF3B82F6),
-                                        Color(0xFF8B5CF6),
-                                      ],
-                                    ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(28),
+                                color: panelBg,
+                                border: Border.all(color: panelBorder),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.25),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 10),
                                   ),
-                                  child: Center(
-                                    child: Text(
-                                      'AS',
-                                      style: TextStyle(
-                                        color: textPrimary,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.bold,
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.only(bottom: 20),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(seconds: 2),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: primaryBlue.withOpacity(0.5),
+                                            blurRadius: 24,
+                                            spreadRadius: 4,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Container(
+                                        width: 112,
+                                        height: 112,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              Color(0xFF3B82F6),
+                                              Color(0xFF8B5CF6),
+                                            ],
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            _displayInitials,
+                                            style: TextStyle(
+                                              color: textPrimary,
+                                              fontSize: 36,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
 
-                            Text(
-                              "Abram Anwer",
-                              style: TextStyle(
-                                color: textPrimary,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              "abram.anwer@university.edu",
-                              style: TextStyle(
-                                color: textSecondary,
-                                fontSize: 14,
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _StatsCard(
-                                    icon: Icons.school,
-                                    title: CustomLocalizations.of(
-                                      context,
-                                    ).get('gpaLabel'),
-                                    value: '3.7',
-                                    cardColor: subtlePanelBg,
-                                    borderColor: subtlePanelBorder,
-                                    iconBgColor: primaryBlue.withOpacity(0.16),
-                                    iconColor: primaryBlue,
-                                    titleColor: textSecondary,
-                                    valueColor: textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _StatsCard(
-                                    icon: Icons.quiz,
-                                    title: CustomLocalizations.of(
-                                      context,
-                                    ).get('quizzesLabel'),
-                                    value: '24',
-                                    cardColor: subtlePanelBg,
-                                    borderColor: subtlePanelBorder,
-                                    iconBgColor: primaryBlue.withOpacity(0.16),
-                                    iconColor: primaryBlue,
-                                    titleColor: textSecondary,
-                                    valueColor: textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      0,
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Account Section
-                    _animatedWithFade(
-                      _GlassmorphismSection(
-                        title: AppLocalizations.of(context)!.account,
-                        titleColor: textPrimary,
-                        itemBgColor: subtlePanelBg,
-                        itemBorderColor: subtlePanelBorder,
-                        iconBgColor: primaryBlue.withOpacity(0.16),
-                        iconColor: primaryBlue,
-                        textColor: textPrimary,
-                        secondaryTextColor: textSecondary,
-                        chevronColor: textSecondary,
-                        items: [
-                          _MenuItem(
-                            icon: Icons.person,
-                            label: AppLocalizations.of(context)!.editProfile,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            chevronColor: textSecondary,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const EditProfileScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _MenuItem(
-                            icon: Icons.book,
-                            label: AppLocalizations.of(context)!.academicInfo,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            chevronColor: textSecondary,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const PersonalInfoScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      200,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Preferences Section
-                    _animatedWithFade(
-                      _GlassmorphismSection(
-                        title: AppLocalizations.of(context)!.preferences,
-                        titleColor: textPrimary,
-                        itemBgColor: subtlePanelBg,
-                        itemBorderColor: subtlePanelBorder,
-                        iconBgColor: primaryBlue.withOpacity(0.16),
-                        iconColor: primaryBlue,
-                        textColor: textPrimary,
-                        secondaryTextColor: textSecondary,
-                        chevronColor: textSecondary,
-                        items: [
-                          _MenuItem(
-                            icon: Icons.notifications,
-                            label: AppLocalizations.of(context)!.notifications,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            chevronColor: textSecondary,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const NotificationsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _MenuItem(
-                            icon: Icons.dark_mode,
-                            label: AppLocalizations.of(context)!.appearance,
-                            hasToggle: true,
-                            isToggled: isDark,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            chevronColor: textSecondary,
-                            onToggle: () {
-                              final newMode = isDark
-                                  ? ThemeMode.light
-                                  : ThemeMode.dark;
-                              themeModeNotifier.value = newMode;
-                            },
-                          ),
-                          _MenuItem(
-                            icon: Icons.language,
-                            label: AppLocalizations.of(context)!.language,
-                            subtitle: _selectedLanguage,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            secondaryTextColor: textSecondary,
-                            chevronColor: textSecondary,
-                            onTap: _showLanguageDialog,
-                          ),
-                        ],
-                      ),
-                      400,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Support Section
-                    _animatedWithFade(
-                      _GlassmorphismSection(
-                        title: AppLocalizations.of(context)!.support,
-                        titleColor: textPrimary,
-                        itemBgColor: subtlePanelBg,
-                        itemBorderColor: subtlePanelBorder,
-                        iconBgColor: primaryBlue.withOpacity(0.16),
-                        iconColor: primaryBlue,
-                        textColor: textPrimary,
-                        secondaryTextColor: textSecondary,
-                        chevronColor: textSecondary,
-                        items: [
-                          _MenuItem(
-                            icon: Icons.info,
-                            label: AppLocalizations.of(context)!.aboutApp,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            chevronColor: textSecondary,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const AppInfoScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _MenuItem(
-                            icon: Icons.help,
-                            label: AppLocalizations.of(context)!.help,
-                            bgColor: subtlePanelBg,
-                            borderColor: subtlePanelBorder,
-                            iconBgColor: primaryBlue.withOpacity(0.16),
-                            iconColor: primaryBlue,
-                            textColor: textPrimary,
-                            chevronColor: textSecondary,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HelpScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      600,
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Log Out Button
-                    _animatedWithFade(
-                      MouseRegion(
-                        onEnter: (_) => setState(() => _isHoverLogout = true),
-                        onExit: (_) => setState(() => _isHoverLogout = false),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          transform: Matrix4.identity()
-                            ..scale(_isHoverLogout ? 1.02 : 1.0),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: _isHoverLogout
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.red.withOpacity(0.3),
-                                      blurRadius: 20,
-                                      spreadRadius: 5,
+                                  Text(
+                                    _displayName,
+                                    style: TextStyle(
+                                      color: textPrimary,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ]
-                                : null,
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.05)
-                                  : const Color(0xFFFFF1F2),
-                              border: Border.all(
-                                color: isDark
-                                    ? Colors.white.withOpacity(0.1)
-                                    : const Color(0xFFFECACA),
-                              ),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const LoginScreen(),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _displayEmail,
+                                    style: TextStyle(
+                                      color: textSecondary,
+                                      fontSize: 14,
                                     ),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                  ),
+
+                                  const SizedBox(height: 24),
+                                  Row(
                                     children: [
-                                      Icon(
-                                        Icons.logout,
-                                        color: const Color(0xFFDC2626),
-                                        size: 20,
+                                      Expanded(
+                                        child: _StatsCard(
+                                          icon: Icons.school,
+                                          title: CustomLocalizations.of(
+                                            context,
+                                          ).get('gpaLabel'),
+                                          value: _gpa,
+                                          cardColor: subtlePanelBg,
+                                          borderColor: subtlePanelBorder,
+                                          iconBgColor:
+                                              primaryBlue.withOpacity(0.16),
+                                          iconColor: primaryBlue,
+                                          titleColor: textSecondary,
+                                          valueColor: textPrimary,
+                                        ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        AppLocalizations.of(context)!.logOut,
-                                        style: TextStyle(
-                                          color: const Color(0xFFDC2626),
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: _StatsCard(
+                                          icon: Icons.quiz,
+                                          title: CustomLocalizations.of(
+                                            context,
+                                          ).get('quizzesLabel'),
+                                          value: '24',
+                                          cardColor: subtlePanelBg,
+                                          borderColor: subtlePanelBorder,
+                                          iconBgColor:
+                                              primaryBlue.withOpacity(0.16),
+                                          iconColor: primaryBlue,
+                                          titleColor: textSecondary,
+                                          valueColor: textPrimary,
                                         ),
                                       ),
                                     ],
                                   ),
+                                ],
+                              ),
+                            ),
+                            0,
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Account Section
+                          _animatedWithFade(
+                            _GlassmorphismSection(
+                              title: AppLocalizations.of(context)!.account,
+                              titleColor: textPrimary,
+                              itemBgColor: subtlePanelBg,
+                              itemBorderColor: subtlePanelBorder,
+                              iconBgColor: primaryBlue.withOpacity(0.16),
+                              iconColor: primaryBlue,
+                              textColor: textPrimary,
+                              secondaryTextColor: textSecondary,
+                              chevronColor: textSecondary,
+                              items: [
+                                _MenuItem(
+                                  icon: Icons.person,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  )!.editProfile,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  chevronColor: textSecondary,
+                                  onTap: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const PersonalInfoScreen(),
+                                      ),
+                                    );
+                                    // Reload profile after returning from edit
+                                    _loadProfile();
+                                  },
+                                ),
+                                _MenuItem(
+                                  icon: Icons.book,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  )!.academicInfo,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  chevronColor: textSecondary,
+                                  onTap: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const AcademicScreen(),
+                                      ),
+                                    );
+                                    // Reload profile after returning
+                                    _loadProfile();
+                                  },
+                                ),
+                              ],
+                            ),
+                            200,
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Preferences Section
+                          _animatedWithFade(
+                            _GlassmorphismSection(
+                              title:
+                                  AppLocalizations.of(context)!.preferences,
+                              titleColor: textPrimary,
+                              itemBgColor: subtlePanelBg,
+                              itemBorderColor: subtlePanelBorder,
+                              iconBgColor: primaryBlue.withOpacity(0.16),
+                              iconColor: primaryBlue,
+                              textColor: textPrimary,
+                              secondaryTextColor: textSecondary,
+                              chevronColor: textSecondary,
+                              items: [
+                                _MenuItem(
+                                  icon: Icons.notifications,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  )!.notifications,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  chevronColor: textSecondary,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const NotificationsScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                _MenuItem(
+                                  icon: Icons.dark_mode,
+                                  label: AppLocalizations.of(
+                                    context,
+                                  )!.appearance,
+                                  hasToggle: true,
+                                  isToggled: isDark,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  chevronColor: textSecondary,
+                                  onToggle: () {
+                                    final newMode = isDark
+                                        ? ThemeMode.light
+                                        : ThemeMode.dark;
+                                    themeModeNotifier.value = newMode;
+                                  },
+                                ),
+                                _MenuItem(
+                                  icon: Icons.language,
+                                  label:
+                                      AppLocalizations.of(context)!.language,
+                                  subtitle: _selectedLanguage,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  secondaryTextColor: textSecondary,
+                                  chevronColor: textSecondary,
+                                  onTap: _showLanguageDialog,
+                                ),
+                              ],
+                            ),
+                            400,
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Support Section
+                          _animatedWithFade(
+                            _GlassmorphismSection(
+                              title: AppLocalizations.of(context)!.support,
+                              titleColor: textPrimary,
+                              itemBgColor: subtlePanelBg,
+                              itemBorderColor: subtlePanelBorder,
+                              iconBgColor: primaryBlue.withOpacity(0.16),
+                              iconColor: primaryBlue,
+                              textColor: textPrimary,
+                              secondaryTextColor: textSecondary,
+                              chevronColor: textSecondary,
+                              items: [
+                                _MenuItem(
+                                  icon: Icons.info,
+                                  label:
+                                      AppLocalizations.of(context)!.aboutApp,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  chevronColor: textSecondary,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const AppInfoScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                _MenuItem(
+                                  icon: Icons.help,
+                                  label: AppLocalizations.of(context)!.help,
+                                  bgColor: subtlePanelBg,
+                                  borderColor: subtlePanelBorder,
+                                  iconBgColor: primaryBlue.withOpacity(0.16),
+                                  iconColor: primaryBlue,
+                                  textColor: textPrimary,
+                                  chevronColor: textSecondary,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const HelpScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            600,
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Log Out Button
+                          _animatedWithFade(
+                            MouseRegion(
+                              onEnter: (_) =>
+                                  setState(() => _isHoverLogout = true),
+                              onExit: (_) =>
+                                  setState(() => _isHoverLogout = false),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                transform: Matrix4.identity()
+                                  ..scale(_isHoverLogout ? 1.02 : 1.0),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: _isHoverLogout
+                                      ? [
+                                          BoxShadow(
+                                            color:
+                                                Colors.red.withOpacity(0.3),
+                                            blurRadius: 20,
+                                            spreadRadius: 5,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    color: isDark
+                                        ? Colors.white.withOpacity(0.05)
+                                        : const Color(0xFFFFF1F2),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withOpacity(0.1)
+                                          : const Color(0xFFFECACA),
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(16),
+                                      onTap: () async {
+                                        await FirebaseAuth.instance.signOut();
+                                        if (!mounted) return;
+                                        Navigator.pushAndRemoveUntil(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const LoginScreen(),
+                                          ),
+                                          (route) => false,
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(
+                                              Icons.logout,
+                                              color: Color(0xFFDC2626),
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              AppLocalizations.of(
+                                                context,
+                                              )!.logOut,
+                                              style: const TextStyle(
+                                                color: Color(0xFFDC2626),
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
+                            800,
                           ),
-                        ),
+
+                          const SizedBox(height: 24),
+
+                          const Center(
+                            child: Text(
+                              "Smart Study AI v1.0.0",
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+                        ],
                       ),
-                      800,
                     ),
-
-                    const SizedBox(height: 24),
-
-                    const Center(
-                      child: Text(
-                        "Smart Study AI v1.0.0",
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
+                  ),
           ),
         ],
       ),
@@ -740,8 +814,10 @@ class _GlassmorphismSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         ...items.map(
-          (item) =>
-              Padding(padding: const EdgeInsets.only(bottom: 12), child: item),
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: item,
+          ),
         ),
       ],
     );
@@ -796,7 +872,8 @@ class _MenuItemState extends State<_MenuItem> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..translate(_isHovered ? 8.0 : 0.0),
+        transform: Matrix4.identity()
+          ..translate(_isHovered ? 8.0 : 0.0),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: widget.bgColor,
@@ -822,7 +899,8 @@ class _MenuItemState extends State<_MenuItem> {
                       borderRadius: BorderRadius.circular(12),
                       color: widget.iconBgColor,
                     ),
-                    child: Icon(widget.icon, color: widget.iconColor, size: 20),
+                    child:
+                        Icon(widget.icon, color: widget.iconColor, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -841,8 +919,7 @@ class _MenuItemState extends State<_MenuItem> {
                           Text(
                             widget.subtitle!,
                             style: TextStyle(
-                              color:
-                                  widget.secondaryTextColor ??
+                              color: widget.secondaryTextColor ??
                                   widget.textColor.withOpacity(0.7),
                               fontSize: 12,
                             ),
@@ -940,9 +1017,8 @@ class _LanguageOption extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
               ),

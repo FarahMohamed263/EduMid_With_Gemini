@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:ai_study_app/app_palette.dart';
 import '../localization_helper.dart';
+import '../services/user_service.dart';
 
 class AcademicScreen extends StatefulWidget {
   const AcademicScreen({super.key});
@@ -20,28 +21,71 @@ class _AcademicScreenState extends State<AcademicScreen>
     'gpa': '',
   };
 
+  // Controllers to reflect loaded data
+  final _universityController = TextEditingController();
+  final _facultyController = TextEditingController();
+  final _majorController = TextEditingController();
+  final _gpaController = TextEditingController();
+
   String gpaError = '';
   String focusedField = '';
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAcademicInfo();
+  }
+
+  Future<void> _loadAcademicInfo() async {
+    final data = await UserService.getUserData();
+    if (data != null && mounted) {
+      setState(() {
+        formData['university'] = data['university'] ?? '';
+        formData['faculty'] = data['faculty'] ?? '';
+        formData['major'] = data['major'] ?? '';
+        formData['academicYear'] = data['academicYear'] ?? '';
+        formData['gpa'] = data['gpa'] ?? '';
+
+        _universityController.text = formData['university']!;
+        _facultyController.text = formData['faculty']!;
+        _majorController.text = formData['major']!;
+        _gpaController.text = formData['gpa']!;
+        _isLoading = false;
+      });
+    } else {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _universityController.dispose();
+    _facultyController.dispose();
+    _majorController.dispose();
+    _gpaController.dispose();
+    super.dispose();
+  }
 
   void handleGpaChange(String value) {
-    final regex = RegExp(r'^\d+\.\d$');
-
+    final regex = RegExp(r'^\d+\.?\d*$');
     if (value.isNotEmpty && regex.hasMatch(value)) {
       setState(() {
         formData['gpa'] = value;
-
-        if (value.isNotEmpty) {
-          final numValue = double.tryParse(value);
-          if (numValue == null) {
-            gpaError = 'Please enter a valid number';
-          } else if (numValue < 0 || numValue > 4) {
-            gpaError = 'GPA must be between 0.0 and 4.0';
-          } else {
-            gpaError = '';
-          }
+        final numValue = double.tryParse(value);
+        if (numValue == null) {
+          gpaError = 'Please enter a valid number';
+        } else if (numValue < 0 || numValue > 4) {
+          gpaError = 'GPA must be between 0.0 and 4.0';
         } else {
           gpaError = '';
         }
+      });
+    } else {
+      setState(() {
+        formData['gpa'] = value;
+        gpaError = '';
       });
     }
   }
@@ -63,7 +107,6 @@ class _AcademicScreenState extends State<AcademicScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // 🌌 Background
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -73,36 +116,36 @@ class _AcademicScreenState extends State<AcademicScreen>
               ),
             ),
           ),
-
-          // ✨ Particles
           const Particles(),
-
-          // 📄 Content
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  header(),
-                  const SizedBox(height: 32),
-                  formCard(),
-                  const SizedBox(height: 40),
-                  Center(
-                    child: Text(
-                      'Powered by EduMind AI',
-                      style: TextStyle(
-                        color: palette.textSecondary,
-                        fontSize: 12,
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else
+            SafeArea(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    header(),
+                    const SizedBox(height: 32),
+                    formCard(),
+                    const SizedBox(height: 40),
+                    Center(
+                      child: Text(
+                        'Powered by EduMind AI',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -163,18 +206,21 @@ class _AcademicScreenState extends State<AcademicScreen>
             CustomLocalizations.of(context).get('universityName'),
             'university',
             CustomLocalizations.of(context).get('enterYourUniversity'),
+            controller: _universityController,
           ),
           const SizedBox(height: 16),
           buildField(
             CustomLocalizations.of(context).get('facultyCollege'),
             'faculty',
             CustomLocalizations.of(context).get('enterYourFaculty'),
+            controller: _facultyController,
           ),
           const SizedBox(height: 16),
           buildField(
             CustomLocalizations.of(context).get('majorFieldOfStudy'),
             'major',
             CustomLocalizations.of(context).get('enterYourMajor'),
+            controller: _majorController,
           ),
           const SizedBox(height: 16),
           buildDropdown(),
@@ -187,7 +233,12 @@ class _AcademicScreenState extends State<AcademicScreen>
     );
   }
 
-  Widget buildField(String label, String key, String placeholder) {
+  Widget buildField(
+    String label,
+    String key,
+    String placeholder, {
+    TextEditingController? controller,
+  }) {
     final palette = AppPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,6 +253,7 @@ class _AcademicScreenState extends State<AcademicScreen>
         ),
         const SizedBox(height: 8),
         TextField(
+          controller: controller,
           onChanged: (v) => formData[key] = v,
           style: TextStyle(color: palette.textPrimary, fontSize: 14),
           decoration: InputDecoration(
@@ -254,7 +306,7 @@ class _AcademicScreenState extends State<AcademicScreen>
           ),
           child: DropdownButtonFormField<String>(
             dropdownColor: palette.surfaceAlt,
-            initialValue: formData['academicYear']!.isEmpty
+            value: formData['academicYear']!.isEmpty
                 ? null
                 : formData['academicYear'],
             items: [
@@ -284,14 +336,15 @@ class _AcademicScreenState extends State<AcademicScreen>
               ),
               DropdownMenuItem(
                 value: 'graduate',
-                child: Text(CustomLocalizations.of(context).get('graduate')),
+                child:
+                    Text(CustomLocalizations.of(context).get('graduate')),
               ),
             ],
             onChanged: (v) =>
                 setState(() => formData['academicYear'] = v ?? ''),
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
               isDense: true,
             ),
             style: TextStyle(color: palette.textPrimary, fontSize: 14),
@@ -319,13 +372,14 @@ class _AcademicScreenState extends State<AcademicScreen>
         Stack(
           children: [
             TextField(
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              controller: _gpaController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               onChanged: handleGpaChange,
               style: TextStyle(color: palette.textPrimary, fontSize: 14),
               decoration: InputDecoration(
-                hintText: CustomLocalizations.of(context).get('gpaRangeHint'),
+                hintText:
+                    CustomLocalizations.of(context).get('gpaRangeHint'),
                 hintStyle: TextStyle(
                   color: palette.textSecondary,
                   fontSize: 14,
@@ -354,7 +408,8 @@ class _AcademicScreenState extends State<AcademicScreen>
               const Positioned(
                 right: 15,
                 top: 16,
-                child: Icon(Icons.check_circle, color: Colors.green, size: 20),
+                child:
+                    Icon(Icons.check_circle, color: Colors.green, size: 20),
               ),
           ],
         ),
@@ -363,7 +418,8 @@ class _AcademicScreenState extends State<AcademicScreen>
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               gpaError,
-              style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+              style:
+                  const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
             ),
           ),
       ],
@@ -376,17 +432,38 @@ class _AcademicScreenState extends State<AcademicScreen>
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () {
-          // TODO: Save academic information to database or state
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                CustomLocalizations.of(context).get('academicInformationSaved'),
-              ),
-            ),
-          );
-          Navigator.pop(context);
-        },
+        onPressed: _isSaving
+            ? null
+            : () async {
+                setState(() => _isSaving = true);
+                try {
+                  await UserService.saveAcademicInfo(
+                    university: formData['university'] ?? '',
+                    faculty: formData['faculty'] ?? '',
+                    major: formData['major'] ?? '',
+                    academicYear: formData['academicYear'] ?? '',
+                    gpa: formData['gpa'] ?? '',
+                  );
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        CustomLocalizations.of(
+                          context,
+                        ).get('academicInformationSaved'),
+                      ),
+                    ),
+                  );
+                  Navigator.pop(context);
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                } finally {
+                  if (mounted) setState(() => _isSaving = false);
+                }
+              },
         style: ElevatedButton.styleFrom(
           backgroundColor: palette.primary,
           shape: RoundedRectangleBorder(
@@ -394,20 +471,21 @@ class _AcademicScreenState extends State<AcademicScreen>
           ),
           elevation: 0,
         ),
-        child: Text(
-          CustomLocalizations.of(context).get('saveInformation'),
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        child: _isSaving
+            ? const CircularProgressIndicator(color: Colors.white)
+            : Text(
+                CustomLocalizations.of(context).get('saveInformation'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
 }
 
-// ✨ Particles
 class Particles extends StatefulWidget {
   const Particles({super.key});
 
@@ -429,10 +507,16 @@ class _ParticlesState extends State<Particles>
   }
 
   @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
-      builder: (_, _) {
+      builder: (_, __) {
         return CustomPaint(painter: ParticlePainter(), child: Container());
       },
     );
@@ -445,7 +529,6 @@ class ParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.blue.withOpacity(0.3);
-
     for (int i = 0; i < 20; i++) {
       final x = rand.nextDouble() * size.width;
       final y = rand.nextDouble() * size.height;

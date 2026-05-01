@@ -5,9 +5,11 @@ import 'package:ai_study_app/app_palette.dart';
 import '../l10n/app_localizations.dart';
 import '../theme_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SignUpScreenNew extends StatefulWidget {
   const SignUpScreenNew({super.key});
+
   @override
   State<SignUpScreenNew> createState() => _SignUpScreenNewState();
 }
@@ -23,8 +25,8 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
 
   bool showPassword = false;
   bool showConfirmPassword = false;
+  bool isLoading = false;
 
-  /// ✨ Glow Animation
   late AnimationController glowController;
   late Animation<double> glowAnimation;
 
@@ -40,18 +42,40 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
     glowAnimation = Tween<double>(
       begin: 0.2,
       end: 1,
-    ).animate(CurvedAnimation(parent: glowController, curve: Curves.easeInOut));
+    ).animate(
+      CurvedAnimation(
+        parent: glowController,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    glowController.dispose();
+
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+
+    super.dispose();
   }
 
   /// ================= Theme Toggle =================
   void _toggleTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    themeModeNotifier.value = themeModeNotifier.value == ThemeMode.dark
-        ? ThemeMode.light
-        : ThemeMode.dark;
+
+    themeModeNotifier.value =
+        themeModeNotifier.value == ThemeMode.dark
+            ? ThemeMode.light
+            : ThemeMode.dark;
+
     prefs.setString(
       'theme',
-      themeModeNotifier.value == ThemeMode.dark ? 'dark' : 'light',
+      themeModeNotifier.value == ThemeMode.dark
+          ? 'dark'
+          : 'light',
     );
   }
 
@@ -59,6 +83,7 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
   void _showLanguageDialog(BuildContext context) async {
     final localizations = AppLocalizations.of(context)!;
     final prefs = await SharedPreferences.getInstance();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -70,7 +95,9 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
               title: const Text('English'),
               onTap: () {
                 localeNotifier.value = const Locale('en');
+
                 prefs.setString('language', 'en');
+
                 Navigator.pop(context);
               },
             ),
@@ -78,7 +105,9 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
               title: const Text('العربية'),
               onTap: () {
                 localeNotifier.value = const Locale('ar');
+
                 prefs.setString('language', 'ar');
+
                 Navigator.pop(context);
               },
             ),
@@ -88,54 +117,168 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
     );
   }
 
+  /// ================= Sign Up =================
+  Future<void> _signUp() async {
+    final localizations = AppLocalizations.of(context)!;
+
+    if (nameController.text.trim().isEmpty ||
+        emailController.text.trim().isEmpty ||
+        passwordController.text.trim().isEmpty ||
+        confirmPasswordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all fields'),
+        ),
+      );
+      return;
+    }
+
+    if (passwordController.text.trim() !=
+        confirmPasswordController.text.trim()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Passwords do not match'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+
+      final user = credential.user;
+
+      if (user == null) return;
+
+      /// ✅ حفظ الاسم داخل FirebaseAuth
+      await user.updateDisplayName(
+        nameController.text.trim(),
+      );
+
+      /// ✅ تحديث بيانات اليوزر
+      await user.reload();
+
+      /// ✅ الحصول على أحدث نسخة من اليوزر
+      final updatedUser =
+          FirebaseAuth.instance.currentUser;
+
+      /// ✅ حفظ البيانات داخل Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(updatedUser!.uid)
+          .set({
+        'fullName': nameController.text.trim(),
+        'email': emailController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      /// ✅ إرسال إيميل التحقق
+      await updatedUser.sendEmailVerification();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Verification email sent! Check your inbox",
+          ),
+        ),
+      );
+
+      Navigator.pushReplacementNamed(
+        context,
+        '/verify-email',
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = 'Something went wrong';
+
+      if (e.code == 'email-already-in-use') {
+        message = 'This email is already in use';
+      } else if (e.code == 'weak-password') {
+        message = 'Password is too weak';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final localizations = AppLocalizations.of(context)!;
+
     return Scaffold(
       body: Stack(
         children: [
-          /// 🔥 BACKGROUND
+          /// BACKGROUND
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [palette.bgTop, palette.bgBottom],
+                colors: [
+                  palette.bgTop,
+                  palette.bgBottom,
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
             ),
           ),
 
-          /// � SETTINGS ICONS
+          /// SETTINGS
           Positioned(
             top: 40,
             right: 20,
             child: Row(
               children: [
-                // Language Icon
                 IconButton(
                   icon: Icon(
                     Icons.language,
                     color: palette.textPrimary,
                     size: 28,
                   ),
-                  onPressed: () => _showLanguageDialog(context),
+                  onPressed: () =>
+                      _showLanguageDialog(context),
                 ),
+
                 const SizedBox(width: 10),
-                // Theme Icon
+
                 IconButton(
                   icon: Icon(
-                    palette.isDark ? Icons.light_mode : Icons.dark_mode,
+                    palette.isDark
+                        ? Icons.light_mode
+                        : Icons.dark_mode,
                     color: palette.textPrimary,
                     size: 28,
                   ),
-                  onPressed: () => _toggleTheme(),
+                  onPressed: _toggleTheme,
                 ),
               ],
             ),
           ),
 
-          /// �💎 CONTENT
+          /// CONTENT
           Center(
             child: SingleChildScrollView(
               child: Column(
@@ -155,36 +298,39 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
 
                   Text(
                     localizations.startLearningJourney,
-                    style: TextStyle(color: palette.textSecondary),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                    ),
                   ),
 
                   const SizedBox(height: 40),
 
-                  /// ✨✨ الكارد بالوميض ✨✨
                   AnimatedBuilder(
                     animation: glowAnimation,
                     builder: (context, child) {
                       return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                        ),
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: palette.surface,
-                          borderRadius: BorderRadius.circular(24),
-
-                          /// 🔥 glow
+                          borderRadius:
+                              BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: palette.primary.withOpacity(
+                              color: palette.primary
+                                  .withOpacity(
                                 0.4 * glowAnimation.value,
                               ),
-                              blurRadius: 25 * glowAnimation.value,
+                              blurRadius:
+                                  25 * glowAnimation.value,
                               spreadRadius: 2,
                             ),
                           ],
-
-                          /// 🔥 border glow
                           border: Border.all(
-                            color: palette.primary.withOpacity(
+                            color: palette.primary
+                                .withOpacity(
                               0.3 * glowAnimation.value,
                             ),
                           ),
@@ -193,7 +339,6 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
                       );
                     },
 
-                    /// 👇 محتوى الكارد
                     child: Form(
                       key: _formKey,
                       child: Column(
@@ -217,18 +362,21 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
                           CustomInput(
                             icon: Icons.lock,
                             hint: localizations.password,
-                            controller: passwordController,
+                            controller:
+                                passwordController,
                             obscure: !showPassword,
                             suffix: IconButton(
                               icon: Icon(
                                 showPassword
                                     ? Icons.visibility_off
                                     : Icons.visibility,
-                                color: palette.textSecondary,
+                                color:
+                                    palette.textSecondary,
                               ),
                               onPressed: () {
                                 setState(() {
-                                  showPassword = !showPassword;
+                                  showPassword =
+                                      !showPassword;
                                 });
                               },
                             ),
@@ -238,19 +386,24 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
 
                           CustomInput(
                             icon: Icons.lock,
-                            hint: localizations.confirmPassword,
-                            controller: confirmPasswordController,
-                            obscure: !showConfirmPassword,
+                            hint: localizations
+                                .confirmPassword,
+                            controller:
+                                confirmPasswordController,
+                            obscure:
+                                !showConfirmPassword,
                             suffix: IconButton(
                               icon: Icon(
                                 showConfirmPassword
                                     ? Icons.visibility_off
                                     : Icons.visibility,
-                                color: palette.textSecondary,
+                                color:
+                                    palette.textSecondary,
                               ),
                               onPressed: () {
                                 setState(() {
-                                  showConfirmPassword = !showConfirmPassword;
+                                  showConfirmPassword =
+                                      !showConfirmPassword;
                                 });
                               },
                             ),
@@ -261,74 +414,72 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
+                              style:
+                                  ElevatedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(
                                   vertical: 16,
                                 ),
-                                backgroundColor: palette.primary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                backgroundColor:
+                                    palette.primary,
+                                shape:
+                                    RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    16,
+                                  ),
                                 ),
                               ),
-                              onPressed: () async {
-                                if (_formKey.currentState!.validate()) {
-                                  try {
-                                    final credential = await FirebaseAuth
-                                        .instance
-                                        .createUserWithEmailAndPassword(
-                                          email: emailController.text.trim(),
-                                          password: passwordController.text
-                                              .trim(),
-                                        );
-
-                                    final user = credential.user;
-
-                                    /// إرسال إيميل التحقق
-                                    await user!.sendEmailVerification();
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          "Verification email sent! Check your inbox",
-                                        ),
+                              onPressed:
+                                  isLoading ? null : _signUp,
+                              child: isLoading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child:
+                                          CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
                                       ),
-                                    );
-
-                                    /// التحويل لشاشة التفعيل
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/verify-email',
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(e.toString())),
-                                    );
-                                  }
-                                }
-                              },
-                              child: Text(
-                                localizations.createAccount,
-                                style: const TextStyle(color: Colors.white),
-                              ),
+                                    )
+                                  : Text(
+                                      localizations
+                                          .createAccount,
+                                      style:
+                                          const TextStyle(
+                                        color:
+                                            Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
 
                           const SizedBox(height: 20),
 
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
                             children: [
                               Text(
-                                localizations.alreadyHaveAccount,
-                                style: TextStyle(color: palette.textSecondary),
+                                localizations
+                                    .alreadyHaveAccount,
+                                style: TextStyle(
+                                  color: palette
+                                      .textSecondary,
+                                ),
                               ),
+
                               TextButton(
                                 onPressed: () {
-                                  Navigator.pop(context);
+                                  Navigator.pop(
+                                      context);
                                 },
                                 child: Text(
                                   localizations.signIn,
-                                  style: TextStyle(color: palette.textPrimary),
+                                  style: TextStyle(
+                                    color: palette
+                                        .textPrimary,
+                                  ),
                                 ),
                               ),
                             ],
@@ -342,7 +493,9 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
 
                   Text(
                     localizations.agreeTerms,
-                    style: TextStyle(color: palette.textSecondary),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -350,59 +503,6 @@ class _SignUpScreenNewState extends State<SignUpScreenNew>
           ),
         ],
       ),
-    );
-  }
-}
-
-class FloatingParticles extends StatelessWidget {
-  const FloatingParticles({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    return Stack(
-      children: List.generate(30, (index) {
-        return Positioned(
-          left: (index * 13.0) % MediaQuery.of(context).size.width,
-          top: (index * 29.0) % MediaQuery.of(context).size.height,
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.0, end: 20.0),
-            duration: Duration(seconds: 3 + index % 5),
-            curve: Curves.easeInOut,
-            builder: (_, value, __) {
-              return Transform.translate(
-                offset: Offset(0, -value),
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.2, end: 1.0),
-                  duration: Duration(seconds: 2 + (index % 3)),
-                  curve: Curves.easeInOut,
-                  builder: (_, opacityValue, __) {
-                    return Opacity(
-                      opacity: opacityValue,
-                      child: Container(
-                        width:
-                            4 + (index % 3).toDouble(), // اختلاف بسيط في الحجم
-                        height: 4 + (index % 3).toDouble(),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: palette.primary.withOpacity(0.4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: palette.primary.withOpacity(0.6),
-                              blurRadius: 8, // 👈 ده ال glow الحقيقي
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-        );
-      }),
     );
   }
 }
@@ -430,9 +530,14 @@ class CustomInput extends StatelessWidget {
       obscureText: obscure,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: Colors.grey),
+        prefixIcon: Icon(
+          icon,
+          color: Colors.grey,
+        ),
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.grey),
+        hintStyle: const TextStyle(
+          color: Colors.grey,
+        ),
         suffixIcon: suffix,
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),

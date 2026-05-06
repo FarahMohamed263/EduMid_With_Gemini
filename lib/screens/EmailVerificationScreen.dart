@@ -79,52 +79,172 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context)!;
     return Scaffold(
+      backgroundColor: const Color(0xFF061A3F),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(localizations.verifyEmail),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         centerTitle: true,
+        title: Text(localizations.verifyEmail),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.logout), onPressed: logout),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.email, size: 100),
-            const SizedBox(height: 20),
-
-            Text(
-              localizations.checkYourEmail,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF061A3F), Color(0xFF091A43)],
+                ),
+              ),
             ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              localizations.sentVerificationLink,
-              textAlign: TextAlign.center,
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                children: [
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 32,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0E2A61).withOpacity(0.95),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 30,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              height: 120,
+                              width: 120,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E4CA4),
+                                borderRadius: BorderRadius.circular(32),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.withOpacity(0.25),
+                                    blurRadius: 30,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.email,
+                                size: 60,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            Text(
+                              localizations.checkYourEmail,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              localizations.sentVerificationLink,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white.withOpacity(0.82),
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 34),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4A8CFF),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                onPressed: checkEmailVerified,
+                                child: Text(
+                                  localizations.iHaveVerified,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: canResendEmail
+                                        ? Colors.white.withOpacity(0.9)
+                                        : Colors.white.withOpacity(0.3),
+                                  ),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                onPressed: canResendEmail
+                                    ? sendVerificationEmail
+                                    : null,
+                                child: Text(
+                                  localizations.resendEmail,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            TextButton(
+                              onPressed: logout,
+                              child: Text(
+                                localizations.cancel,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.75),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-
-            const SizedBox(height: 30),
-
-            ElevatedButton(
-              onPressed: canResendEmail ? sendVerificationEmail : null,
-              child: Text(localizations.resendEmail),
-            ),
-
-            const SizedBox(height: 10),
-
-            ElevatedButton(
-              onPressed: checkEmailVerified,
-              child: Text(localizations.iHaveVerified),
-            ),
-
-            const SizedBox(height: 20),
-
-            TextButton(onPressed: logout, child: Text(localizations.cancel)),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

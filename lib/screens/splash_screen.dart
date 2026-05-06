@@ -1,9 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ai_study_app/app_palette.dart';
-import 'onboarding_page.dart';
-import 'login_screen.dart';
 import '../l10n/app_localizations.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -52,22 +49,7 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _startApp() async {
     await Future.delayed(const Duration(seconds: 5));
 
-    final prefs = await SharedPreferences.getInstance();
-    final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
-
-    if (!mounted) return;
-
-    if (seenOnboarding) {
-      /// روح على Login
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
-    } else {
-      /// روح على Onboarding
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-      );
-    }
+    // No navigation logic here anymore - handled by AuthWrapper
   }
 
   @override

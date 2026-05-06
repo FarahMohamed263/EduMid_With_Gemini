@@ -94,5 +94,7 @@
   "profile": "الملف الشخصي",
   "microTasks": "المهام الصغيرة",
   "overallPerformance": "الأداء العام",
-  "uploadNew": "رفع جديد"
+  "uploadNew": "رفع جديد",
+  "ratingSubmittedSuccessfully": "شكراً! تم إرسال تقييمك بنجاح.",
+  "ratingAlreadySubmittedOnce": "لقد أرسلت تقييمك بالفعل. يُسمح بتقييم واحد فقط."
 }

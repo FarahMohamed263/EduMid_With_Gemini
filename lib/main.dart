@@ -108,21 +108,29 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<void> checkUser() async {
     await Future.delayed(const Duration(seconds: 2)); // Splash effect
 
-    User? user = FirebaseAuth.instance.currentUser;
+    final prefs = await SharedPreferences.getInstance();
+    final seenOnboarding = prefs.getBool('seenOnboarding') ?? false;
 
-    if (user == null) {
-      /// ❌ مفيش يوزر
-      screen = const LoginScreen();
+    if (!seenOnboarding) {
+      /// ❌ مش شاف الـ Onboarding
+      screen = const OnboardingScreen();
     } else {
-      await user.reload();
-      user = FirebaseAuth.instance.currentUser;
+      User? user = FirebaseAuth.instance.currentUser;
 
-      if (user!.emailVerified) {
-        /// ✅ مفعل
-        screen = const MainNavigation();
+      if (user == null) {
+        /// ❌ مفيش يوزر
+        screen = const LoginScreen();
       } else {
-        /// ❌ مش مفعل → يروح شاشة التفعيل
-        screen = const EmailVerificationScreen();
+        await user.reload();
+        user = FirebaseAuth.instance.currentUser;
+
+        if (user!.emailVerified) {
+          /// ✅ مفعل
+          screen = const MainNavigation();
+        } else {
+          /// ❌ مش مفعل → يروح شاشة التفعيل
+          screen = const EmailVerificationScreen();
+        }
       }
     }
 

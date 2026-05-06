@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 import 'package:ai_study_app/app_palette.dart';
 import '../l10n/app_localizations.dart';
+import '../services/study_hour_service.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({super.key});
@@ -320,7 +321,18 @@ class _StatsPageState extends State<StatsPage> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             _quickStat(Icons.gps_fixed, "Level", "12"),
-                            _quickStat(Icons.timer, "Hours", "48h"),
+                            StreamBuilder<String>(
+                              stream:
+                                  StudyHourService.formattedStudyHoursStream(),
+                              builder: (context, snapshot) {
+                                final studyHours = snapshot.data ?? '0h';
+                                return _quickStat(
+                                  Icons.timer,
+                                  "Hours",
+                                  studyHours,
+                                );
+                              },
+                            ),
                             _quickStat(Icons.bar_chart, "Score", "94%"),
                           ],
                         ),

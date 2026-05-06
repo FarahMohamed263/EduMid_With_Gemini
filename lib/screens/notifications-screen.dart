@@ -1,52 +1,12 @@
 import 'dart:math';
-import 'package:flutter/material.dart';
+
 import 'package:ai_study_app/app_palette.dart';
+import 'package:ai_study_app/services/notifications_service.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../localization_helper.dart';
-
-// ─────────────────────────────────────────────
-// Data Models
-// ─────────────────────────────────────────────
-
-class NotificationSettings {
-  bool pushNotifications;
-  bool studyReminders;
-  bool quizAlerts;
-  bool aiSuggestions;
-
-  NotificationSettings({
-    this.pushNotifications = true,
-    this.studyReminders = true,
-    this.quizAlerts = true,
-    this.aiSuggestions = false,
-  });
-}
-
-class AppNotification {
-  final int id;
-  final IconData icon;
-  final String title;
-  final String description;
-  final String time;
-  bool isUnread;
-
-  AppNotification({
-    required this.id,
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.time,
-    required this.isUnread,
-  });
-
-  AppNotification copyWith({bool? isUnread}) => AppNotification(
-    id: id,
-    icon: icon,
-    title: title,
-    description: description,
-    time: time,
-    isUnread: isUnread ?? this.isUnread,
-  );
-}
+import '../services/notifications_service.dart';
 
 // ─────────────────────────────────────────────
 // Notifications Screen
@@ -63,59 +23,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
-
-  final NotificationSettings _settings = NotificationSettings();
-
-  List<AppNotification> _notifications = [
-    AppNotification(
-      id: 1,
-      icon: Icons.emoji_events_outlined,
-      title: 'newQuizAvailable',
-      description: 'newQuizDescription',
-      time: 'twoHoursAgo',
-      isUnread: true,
-    ),
-    AppNotification(
-      id: 2,
-      icon: Icons.psychology_outlined,
-      title: 'aiStudySuggestion',
-      description: 'aiStudyDescription',
-      time: 'fiveHoursAgo',
-      isUnread: true,
-    ),
-    AppNotification(
-      id: 3,
-      icon: Icons.calendar_today_outlined,
-      title: 'studyReminder',
-      description: 'studyReminderDescription',
-      time: 'eightHoursAgo',
-      isUnread: false,
-    ),
-    AppNotification(
-      id: 4,
-      icon: Icons.track_changes_outlined,
-      title: 'goalAchievement',
-      description: 'goalAchievementDescription',
-      time: 'oneDayAgo',
-      isUnread: false,
-    ),
-    AppNotification(
-      id: 5,
-      icon: Icons.menu_book_outlined,
-      title: 'newCourseAvailable',
-      description: 'newCourseDescription',
-      time: 'twoDaysAgo',
-      isUnread: false,
-    ),
-    AppNotification(
-      id: 6,
-      icon: Icons.bolt_outlined,
-      title: 'streakMilestone',
-      description: 'streakMilestoneDescription',
-      time: 'threeDaysAgo',
-      isUnread: false,
-    ),
-  ];
 
   @override
   void initState() {
@@ -134,45 +41,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     super.dispose();
   }
 
-  int get _unreadCount => _notifications.where((n) => n.isUnread).length;
-
-  void _toggleSetting(String key) {
-    setState(() {
-      switch (key) {
-        case 'pushNotifications':
-          _settings.pushNotifications = !_settings.pushNotifications;
-          break;
-        case 'studyReminders':
-          _settings.studyReminders = !_settings.studyReminders;
-          break;
-        case 'quizAlerts':
-          _settings.quizAlerts = !_settings.quizAlerts;
-          break;
-        case 'aiSuggestions':
-          _settings.aiSuggestions = !_settings.aiSuggestions;
-          break;
-      }
-    });
-  }
-
-  void _markAsRead(int id) {
-    setState(() {
-      _notifications = _notifications
-          .map((n) => n.id == id ? n.copyWith(isUnread: false) : n)
-          .toList();
-    });
-  }
-
-  void _markAllAsRead() {
-    setState(() {
-      _notifications = _notifications
-          .map((n) => n.copyWith(isUnread: false))
-          .toList();
-    });
-  }
-
-  void _clearAll() {
-    setState(() => _notifications = []);
+  String _formatNotificationTime(DateTime? createdAt) {
+    final time = createdAt ?? DateTime.now();
+    return DateFormat('MMM d, h:mm a').format(time.toLocal());
   }
 
   @override
@@ -199,281 +70,336 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnim,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Back button
-                    _SlideIn(
-                      delay: Duration.zero,
-                      child: GestureDetector(
-                        onTap: () => Navigator.maybePop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: palette.surface,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.arrow_back,
-                            color: palette.textPrimary,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+              child: StreamBuilder<NotificationSettings>(
+                stream: NotificationService.watchSettings(),
+                builder: (context, settingsSnapshot) {
+                  final settings =
+                      settingsSnapshot.data ?? const NotificationSettings();
 
-                    // Header
-                    _SlideIn(
-                      delay: const Duration(milliseconds: 80),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: palette.primary.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.notifications_outlined,
-                              color: palette.primary,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            CustomLocalizations.of(
-                              context,
-                            ).get('notifications'),
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: palette.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _SlideIn(
-                      delay: const Duration(milliseconds: 120),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 52),
-                        child: Text(
-                          CustomLocalizations.of(
-                            context,
-                          ).get('stayUpdatedWithYourActivity'),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: palette.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                  return StreamBuilder<List<AppNotification>>(
+                    stream: NotificationService.watchNotifications(),
+                    builder: (context, notificationsSnapshot) {
+                      final notifications =
+                          notificationsSnapshot.data ??
+                          const <AppNotification>[];
+                      final unreadCount = notifications
+                          .where((notification) => notification.isUnread)
+                          .length;
 
-                    // Settings Card
-                    _SlideIn(
-                      delay: const Duration(milliseconds: 160),
-                      child: _GlassCard(
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                12,
+                            _SlideIn(
+                              delay: Duration.zero,
+                              child: GestureDetector(
+                                onTap: () => Navigator.maybePop(context),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: palette.surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    Icons.arrow_back,
+                                    color: palette.textPrimary,
+                                    size: 22,
+                                  ),
+                                ),
                               ),
+                            ),
+                            const SizedBox(height: 20),
+                            _SlideIn(
+                              delay: const Duration(milliseconds: 80),
                               child: Row(
                                 children: [
-                                  Icon(
-                                    Icons.auto_awesome,
-                                    color: palette.primary,
-                                    size: 18,
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: palette.primary.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.notifications_outlined,
+                                      color: palette.primary,
+                                      size: 24,
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 12),
                                   Text(
                                     CustomLocalizations.of(
                                       context,
-                                    ).get('notificationSettings'),
+                                    ).get('notifications'),
                                     style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
                                       color: palette.textPrimary,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Divider(color: palette.border, height: 1),
-                            _NotificationToggle(
-                              icon: Icons.notifications_outlined,
-                              label: CustomLocalizations.of(
-                                context,
-                              ).get('pushNotifications'),
-                              enabled: _settings.pushNotifications,
-                              onToggle: () =>
-                                  _toggleSetting('pushNotifications'),
-                            ),
-                            Divider(color: palette.border, height: 1),
-                            _NotificationToggle(
-                              icon: Icons.calendar_today_outlined,
-                              label: CustomLocalizations.of(
-                                context,
-                              ).get('studyReminders'),
-                              enabled: _settings.studyReminders,
-                              onToggle: () => _toggleSetting('studyReminders'),
-                            ),
-                            Divider(color: palette.border, height: 1),
-                            _NotificationToggle(
-                              icon: Icons.emoji_events_outlined,
-                              label: CustomLocalizations.of(
-                                context,
-                              ).get('quizAlerts'),
-                              enabled: _settings.quizAlerts,
-                              onToggle: () => _toggleSetting('quizAlerts'),
-                            ),
-                            Divider(color: palette.border, height: 1),
-                            _NotificationToggle(
-                              icon: Icons.psychology_outlined,
-                              label: CustomLocalizations.of(
-                                context,
-                              ).get('aiSuggestions'),
-                              enabled: _settings.aiSuggestions,
-                              onToggle: () => _toggleSetting('aiSuggestions'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-
-                    // Recent Notifications Header
-                    _SlideIn(
-                      delay: const Duration(milliseconds: 200),
-                      child: Row(
-                        children: [
-                          Text(
-                            CustomLocalizations.of(
-                              context,
-                            ).get('recentNotifications'),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: palette.textPrimary,
-                            ),
-                          ),
-                          if (_unreadCount > 0) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: palette.primary,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '$_unreadCount',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
+                            const SizedBox(height: 6),
+                            _SlideIn(
+                              delay: const Duration(milliseconds: 120),
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 52),
+                                child: Text(
+                                  CustomLocalizations.of(
+                                    context,
+                                  ).get('stayUpdatedWithYourActivity'),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: palette.textSecondary,
+                                  ),
                                 ),
                               ),
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Action Buttons
-                    if (_notifications.isNotEmpty)
-                      _SlideIn(
-                        delay: const Duration(milliseconds: 240),
-                        child: Row(
-                          children: [
-                            _ActionButton(
-                              label: CustomLocalizations.of(
-                                context,
-                              ).get('markAllAsRead'),
-                              color: palette.primary,
-                              borderColor: palette.primary.withOpacity(0.3),
-                              bgColor: palette.primary.withOpacity(0.1),
-                              onTap: _unreadCount > 0 ? _markAllAsRead : null,
+                            const SizedBox(height: 24),
+                            _SlideIn(
+                              delay: const Duration(milliseconds: 160),
+                              child: _GlassCard(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        16,
+                                        16,
+                                        12,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.auto_awesome,
+                                            color: palette.primary,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            CustomLocalizations.of(
+                                              context,
+                                            ).get('notificationSettings'),
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: palette.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Divider(color: palette.border, height: 1),
+                                    _NotificationToggle(
+                                      icon: Icons.notifications_outlined,
+                                      label: CustomLocalizations.of(
+                                        context,
+                                      ).get('pushNotifications'),
+                                      enabled: settings.pushNotifications,
+                                      onToggle: () =>
+                                          NotificationService.saveSettings(
+                                            settings.copyWith(
+                                              pushNotifications:
+                                                  !settings.pushNotifications,
+                                            ),
+                                          ),
+                                    ),
+                                    Divider(color: palette.border, height: 1),
+                                    _NotificationToggle(
+                                      icon: Icons.calendar_today_outlined,
+                                      label: CustomLocalizations.of(
+                                        context,
+                                      ).get('studyReminders'),
+                                      enabled: settings.studyReminders,
+                                      onToggle: () =>
+                                          NotificationService.saveSettings(
+                                            settings.copyWith(
+                                              studyReminders:
+                                                  !settings.studyReminders,
+                                            ),
+                                          ),
+                                    ),
+                                    Divider(color: palette.border, height: 1),
+                                    _NotificationToggle(
+                                      icon: Icons.emoji_events_outlined,
+                                      label: CustomLocalizations.of(
+                                        context,
+                                      ).get('quizAlerts'),
+                                      enabled: settings.quizAlerts,
+                                      onToggle: () =>
+                                          NotificationService.saveSettings(
+                                            settings.copyWith(
+                                              quizAlerts: !settings.quizAlerts,
+                                            ),
+                                          ),
+                                    ),
+                                    Divider(color: palette.border, height: 1),
+                                    _NotificationToggle(
+                                      icon: Icons.psychology_outlined,
+                                      label: CustomLocalizations.of(
+                                        context,
+                                      ).get('aiSuggestions'),
+                                      enabled: settings.aiSuggestions,
+                                      onToggle: () =>
+                                          NotificationService.saveSettings(
+                                            settings.copyWith(
+                                              aiSuggestions:
+                                                  !settings.aiSuggestions,
+                                            ),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            const SizedBox(width: 12),
-                            _ActionButton(
-                              label: CustomLocalizations.of(
-                                context,
-                              ).get('clearAll'),
-                              color: const Color(0xFFEF4444),
-                              borderColor: const Color(
-                                0xFFEF4444,
-                              ).withOpacity(0.3),
-                              bgColor: const Color(0xFFEF4444).withOpacity(0.1),
-                              onTap: _clearAll,
+                            const SizedBox(height: 28),
+                            _SlideIn(
+                              delay: const Duration(milliseconds: 200),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    CustomLocalizations.of(
+                                      context,
+                                    ).get('recentNotifications'),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: palette.textPrimary,
+                                    ),
+                                  ),
+                                  if (unreadCount > 0) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: palette.primary,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        '$unreadCount',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
+                            const SizedBox(height: 12),
+                            if (notifications.isNotEmpty)
+                              _SlideIn(
+                                delay: const Duration(milliseconds: 240),
+                                child: Row(
+                                  children: [
+                                    _ActionButton(
+                                      label: CustomLocalizations.of(
+                                        context,
+                                      ).get('markAllAsRead'),
+                                      color: palette.primary,
+                                      borderColor: palette.primary.withOpacity(
+                                        0.3,
+                                      ),
+                                      bgColor: palette.primary.withOpacity(0.1),
+                                      onTap: unreadCount > 0
+                                          ? () =>
+                                                NotificationService.markAllAsRead()
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    _ActionButton(
+                                      label: CustomLocalizations.of(
+                                        context,
+                                      ).get('clearAll'),
+                                      color: const Color(0xFFEF4444),
+                                      borderColor: const Color(
+                                        0xFFEF4444,
+                                      ).withOpacity(0.3),
+                                      bgColor: const Color(
+                                        0xFFEF4444,
+                                      ).withOpacity(0.1),
+                                      onTap: () =>
+                                          NotificationService.clearAll(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 14),
+                            if (notifications.isEmpty)
+                              _SlideIn(
+                                delay: const Duration(milliseconds: 280),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 48,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: palette.surface,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: palette.border),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.notifications_off_outlined,
+                                        color: palette.textSecondary,
+                                        size: 48,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        CustomLocalizations.of(
+                                          context,
+                                        ).get('noNotificationsYet'),
+                                        style: TextStyle(
+                                          color: palette.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else
+                              Column(
+                                children: notifications.asMap().entries.map((
+                                  entry,
+                                ) {
+                                  final index = entry.key;
+                                  final notification = entry.value;
+                                  return _SlideIn(
+                                    delay: Duration(
+                                      milliseconds: 280 + index * 50,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _NotificationCard(
+                                        notification: notification,
+                                        timeLabel: _formatNotificationTime(
+                                          notification.createdAt,
+                                        ),
+                                        onTap: () =>
+                                            NotificationService.markAsRead(
+                                              notification.id,
+                                            ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
                           ],
                         ),
-                      ),
-                    const SizedBox(height: 14),
-
-                    // Notifications List
-                    if (_notifications.isEmpty)
-                      _SlideIn(
-                        delay: const Duration(milliseconds: 280),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 48),
-                          decoration: BoxDecoration(
-                            color: palette.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: palette.border),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.notifications_off_outlined,
-                                color: palette.textSecondary,
-                                size: 48,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                CustomLocalizations.of(
-                                  context,
-                                ).get('noNotificationsYet'),
-                                style: TextStyle(color: palette.textSecondary),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      Column(
-                        children: _notifications.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final notif = entry.value;
-                          return _SlideIn(
-                            delay: Duration(milliseconds: 280 + index * 50),
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _NotificationCard(
-                                notification: notif,
-                                onTap: () => _markAsRead(notif.id),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                  ],
-                ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ),
@@ -575,9 +501,14 @@ class _NotificationToggle extends StatelessWidget {
 // ─────────────────────────────────────────────
 class _NotificationCard extends StatefulWidget {
   final AppNotification notification;
+  final String timeLabel;
   final VoidCallback onTap;
 
-  const _NotificationCard({required this.notification, required this.onTap});
+  const _NotificationCard({
+    required this.notification,
+    required this.timeLabel,
+    required this.onTap,
+  });
 
   @override
   State<_NotificationCard> createState() => _NotificationCardState();
@@ -674,7 +605,7 @@ class _NotificationCardState extends State<_NotificationCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    CustomLocalizations.of(context).get(n.description),
+                    n.description,
                     style: TextStyle(
                       fontSize: 12,
                       color: palette.textSecondary,
@@ -683,7 +614,7 @@ class _NotificationCardState extends State<_NotificationCard> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    CustomLocalizations.of(context).get(n.time),
+                    widget.timeLabel,
                     style: TextStyle(
                       fontSize: 11,
                       color: palette.textSecondary,

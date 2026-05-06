@@ -4,7 +4,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ai_study_app/app_palette.dart';
-import '../localization_helper.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -15,16 +16,14 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen>
     with TickerProviderStateMixin {
-  final _fullNameController = TextEditingController(text: 'Alex Morgan');
-  final _usernameController = TextEditingController(text: 'alexm_ai');
-  final _emailController = TextEditingController(
-    text: 'alex.morgan@edumind.ai',
-  );
-  final _phoneController = TextEditingController(text: '+1 (555) 123-4567');
-  final _aboutController = TextEditingController(
-    text:
-        'AI enthusiast and lifelong learner exploring the future of education.',
-  );
+  final _fullNameController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _academicYearController = TextEditingController();
+  final _gpaController = TextEditingController();
+  final _aboutController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -34,7 +33,10 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   bool _showPasswordFields = false;
   bool _isSaving = false;
+  bool _isLoading = true;
+  bool _emailChanged = false;
   String? _pickedImagePath;
+  String? _currentImagePath;
 
   late final AnimationController _particleController;
 
@@ -45,6 +47,8 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       vsync: this,
       duration: const Duration(seconds: 6),
     )..repeat();
+    _emailController.addListener(_onEmailChanged);
+    _loadUserData();
   }
 
   @override
@@ -54,10 +58,57 @@ class _EditProfileScreenState extends State<EditProfileScreen>
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _academicYearController.dispose();
+    _gpaController.dispose();
     _aboutController.dispose();
+    _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _onEmailChanged() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _emailChanged = _emailController.text.trim() != (user.email ?? '');
+      });
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists && mounted) {
+        final data = doc.data() ?? {};
+        setState(() {
+          _fullNameController.text = data['fullName'] ?? '';
+          _usernameController.text = data['username'] ?? '';
+          _emailController.text = user.email ?? '';
+          _phoneController.text = data['phone'] ?? '';
+          _academicYearController.text = data['academicYear'] ?? '';
+          _gpaController.text = data['gpa'] ?? '';
+          _aboutController.text = data['about'] ?? '';
+          _currentImagePath = data['imagePath'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _emailController.text = user.email ?? '';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   void _goBack() {
@@ -68,17 +119,79 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   Future<void> _saveChanges() async {
     setState(() => _isSaving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    setState(() => _isSaving = false);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('User not logged in')));
+        return;
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          CustomLocalizations.of(context).get('profileUpdatedSuccessfully'),
-        ),
-      ),
-    );
+      // Reauthenticate if email or password is being changed
+      if (_emailChanged || _newPasswordController.text.isNotEmpty) {
+        if (_currentPasswordController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Please enter your current password to confirm changes',
+              ),
+            ),
+          );
+          setState(() => _isSaving = false);
+          return;
+        }
+
+        final credential = EmailAuthProvider.credential(
+          email: user.email!,
+          password: _currentPasswordController.text,
+        );
+
+        await user.reauthenticateWithCredential(credential);
+      }
+
+      // Update Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'fullName': _fullNameController.text.trim(),
+        'username': _usernameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'academicYear': _academicYearController.text.trim(),
+        'gpa': _gpaController.text.trim(),
+        'about': _aboutController.text.trim(),
+        'imagePath': _pickedImagePath ?? _currentImagePath ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Update Auth if email changed
+      // if (_emailChanged) {
+      //   await user.updateEmail(_emailController.text.trim());
+      // }
+
+      // Update password if provided
+      if (_newPasswordController.text.isNotEmpty) {
+        if (_newPasswordController.text == _confirmPasswordController.text) {
+          await user.updatePassword(_newPasswordController.text);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Passwords do not match')),
+          );
+          setState(() => _isSaving = false);
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   Future<void> _pickImageFromGallery() async {
@@ -111,41 +224,41 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ),
           Particles(color: palette.primary),
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBackButton(),
-                  const SizedBox(height: 10),
-                  Text(
-                    CustomLocalizations.of(context).get('editProfileTitle'),
-                    style: TextStyle(
-                      fontSize: 28,
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.bold,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildBackButton(),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Edit Profile',
+                          style: TextStyle(
+                            fontSize: 28,
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Manage your personal information',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        Center(child: _buildProfileImage()),
+                        const SizedBox(height: 22),
+                        _buildFormCard(),
+                        const SizedBox(height: 20),
+                        _buildButtons(),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    CustomLocalizations.of(
-                      context,
-                    ).get('manageYourPersonalInformation'),
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Center(child: _buildProfileImage()),
-                  const SizedBox(height: 22),
-                  _buildFormCard(),
-                  const SizedBox(height: 20),
-                  _buildButtons(),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -179,9 +292,11 @@ class _EditProfileScreenState extends State<EditProfileScreen>
 
   Widget _buildProfileImage() {
     final palette = AppPalette.of(context);
-    final ImageProvider imageProvider = _pickedImagePath == null
-        ? NetworkImage(_defaultImageUrl)
-        : FileImage(File(_pickedImagePath!));
+    final ImageProvider imageProvider = _pickedImagePath != null
+        ? FileImage(File(_pickedImagePath!))
+        : _currentImagePath != null && _currentImagePath!.isNotEmpty
+        ? FileImage(File(_currentImagePath!))
+        : NetworkImage(_defaultImageUrl);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -201,7 +316,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           ),
         ),
         CircleAvatar(
-          key: ValueKey(_pickedImagePath ?? _defaultImageUrl),
+          key: ValueKey(
+            _pickedImagePath ?? _currentImagePath ?? _defaultImageUrl,
+          ),
           radius: 60,
           backgroundColor: palette.surfaceAlt,
           backgroundImage: imageProvider,
@@ -210,7 +327,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
           bottom: 0,
           right: 0,
           child: PopupMenuButton<String>(
-            tooltip: CustomLocalizations.of(context).get('changeProfilePhoto'),
+            tooltip: 'Change profile photo',
             color: palette.surfaceAlt,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -230,7 +347,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                     Icon(Icons.upload, color: palette.primary, size: 18),
                     const SizedBox(width: 10),
                     Text(
-                      CustomLocalizations.of(context).get('upload'),
+                      'Upload',
                       style: TextStyle(color: palette.textPrimary),
                     ),
                   ],
@@ -275,33 +392,52 @@ class _EditProfileScreenState extends State<EditProfileScreen>
       child: Column(
         children: [
           _field(
-            label: CustomLocalizations.of(context).get('fullName'),
+            label: 'Full Name',
             icon: Icons.person_outline,
             controller: _fullNameController,
           ),
           const SizedBox(height: 14),
           _field(
-            label: CustomLocalizations.of(context).get('username'),
+            label: 'Username',
             icon: Icons.alternate_email,
             controller: _usernameController,
           ),
           const SizedBox(height: 14),
           _field(
-            label: CustomLocalizations.of(context).get('emailAddress'),
+            label: 'Email Address',
             icon: Icons.email_outlined,
             controller: _emailController,
           ),
           const SizedBox(height: 14),
+          if (_emailChanged || _showPasswordFields) ...[
+            _passwordField(
+              label: 'Enter current password to confirm',
+              controller: _currentPasswordController,
+            ),
+            const SizedBox(height: 14),
+          ],
           _field(
-            label: CustomLocalizations.of(context).get('phoneNumber'),
+            label: 'Phone Number',
             icon: Icons.phone_outlined,
             controller: _phoneController,
+          ),
+          const SizedBox(height: 14),
+          _field(
+            label: 'Academic Year',
+            icon: Icons.school_outlined,
+            controller: _academicYearController,
+          ),
+          const SizedBox(height: 14),
+          _field(
+            label: 'GPA',
+            icon: Icons.grade_outlined,
+            controller: _gpaController,
           ),
           const SizedBox(height: 14),
           _passwordSection(),
           const SizedBox(height: 14),
           _field(
-            label: CustomLocalizations.of(context).get('aboutMe'),
+            label: 'About Me',
             icon: Icons.info_outline,
             controller: _aboutController,
             maxLines: 3,
@@ -325,7 +461,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                CustomLocalizations.of(context).get('changePassword'),
+                'Change Password',
                 style: TextStyle(
                   color: palette.primary,
                   fontSize: 13,
@@ -342,12 +478,12 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         const SizedBox(height: 8),
         if (_showPasswordFields) ...[
           _passwordField(
-            label: CustomLocalizations.of(context).get('enterNewPassword'),
+            label: 'Enter new password',
             controller: _newPasswordController,
           ),
           const SizedBox(height: 14),
           _passwordField(
-            label: CustomLocalizations.of(context).get('confirmPassword'),
+            label: 'Confirm password',
             controller: _confirmPasswordController,
           ),
         ],
@@ -460,9 +596,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               elevation: 0,
             ),
             child: Text(
-              _isSaving
-                  ? CustomLocalizations.of(context).get('saving')
-                  : CustomLocalizations.of(context).get('saveChanges'),
+              _isSaving ? 'Saving...' : 'Save Changes',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -484,7 +618,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
               ),
             ),
             child: Text(
-              CustomLocalizations.of(context).get('cancel'),
+              'Cancel',
               style: TextStyle(
                 color: palette.primary,
                 fontSize: 15,
@@ -496,9 +630,9 @@ class _EditProfileScreenState extends State<EditProfileScreen>
         const SizedBox(height: 20),
         TextButton(
           onPressed: () {},
-          child: Text(
-            CustomLocalizations.of(context).get('deleteAccount'),
-            style: const TextStyle(
+          child: const Text(
+            'Delete Account',
+            style: TextStyle(
               color: Color(0xFFFF5B5B),
               fontSize: 14,
               fontWeight: FontWeight.w600,

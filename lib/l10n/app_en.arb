@@ -94,5 +94,7 @@
   "profile": "Profile",
   "microTasks": "Micro Tasks",
   "overallPerformance": "Overall Performance",
-  "uploadNew": "Upload New"
+  "uploadNew": "Upload New",
+  "ratingSubmittedSuccessfully": "Thank you! Your rating has been submitted successfully.",
+  "ratingAlreadySubmittedOnce": "You already submitted your rating. You can rate only once."
 }

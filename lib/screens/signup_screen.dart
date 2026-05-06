@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ai_study_app/app_palette.dart';
@@ -369,14 +368,14 @@ class FloatingParticles extends StatelessWidget {
             tween: Tween(begin: 0.0, end: 20.0),
             duration: Duration(seconds: 3 + index % 5),
             curve: Curves.easeInOut,
-            builder: (_, value, __) {
+            builder: (_, value, _) {
               return Transform.translate(
                 offset: Offset(0, -value),
                 child: TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0.2, end: 1.0),
                   duration: Duration(seconds: 2 + (index % 3)),
                   curve: Curves.easeInOut,
-                  builder: (_, opacityValue, __) {
+                  builder: (_, opacityValue, _) {
                     return Opacity(
                       opacity: opacityValue,
                       child: Container(

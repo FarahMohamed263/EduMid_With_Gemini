@@ -1,10 +1,16 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:ai_study_app/app_palette.dart';
 import '../localization_helper.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AcademicScreen extends StatefulWidget {
-  const AcademicScreen({super.key});
+  final Map<String, String> personalData;
+  final String? imagePath;
+
+  const AcademicScreen({super.key, required this.personalData, this.imagePath});
 
   @override
   State<AcademicScreen> createState() => _AcademicScreenState();
@@ -20,28 +26,90 @@ class _AcademicScreenState extends State<AcademicScreen>
     'gpa': '',
   };
 
+  // Controllers to reflect loaded data
+  final _universityController = TextEditingController();
+  final _facultyController = TextEditingController();
+  final _majorController = TextEditingController();
+  final _gpaController = TextEditingController();
+
   String gpaError = '';
   String focusedField = '';
+  bool _isSaved = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAcademicInfo();
+  }
+
+  Future<void> _loadAcademicInfo() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists && mounted) {
+        final data = doc.data() ?? {};
+        setState(() {
+          // Load academic data if it exists
+          formData['university'] = data['university'] ?? '';
+          formData['faculty'] = data['faculty'] ?? '';
+          formData['major'] = data['major'] ?? '';
+          formData['academicYear'] = data['academicYear'] ?? '';
+          formData['gpa'] = data['gpa'] ?? '';
+
+          // Update controllers
+          _universityController.text = formData['university']!;
+          _facultyController.text = formData['faculty']!;
+          _majorController.text = formData['major']!;
+          _gpaController.text = formData['gpa']!;
+
+          // Check if academic data already exists (if university is not empty)
+          if (data['university'] != null &&
+              data['university'].toString().isNotEmpty &&
+              data['academicYear'] != null &&
+              data['academicYear'].toString().isNotEmpty) {
+            _isSaved = true;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading academic info: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _universityController.dispose();
+    _facultyController.dispose();
+    _majorController.dispose();
+    _gpaController.dispose();
+    super.dispose();
+  }
 
   void handleGpaChange(String value) {
-    final regex = RegExp(r'^\d+\.\d$');
-
+    final regex = RegExp(r'^\d+\.?\d*$');
     if (value.isNotEmpty && regex.hasMatch(value)) {
       setState(() {
         formData['gpa'] = value;
-
-        if (value.isNotEmpty) {
-          final numValue = double.tryParse(value);
-          if (numValue == null) {
-            gpaError = 'Please enter a valid number';
-          } else if (numValue < 0 || numValue > 4) {
-            gpaError = 'GPA must be between 0.0 and 4.0';
-          } else {
-            gpaError = '';
-          }
+        final numValue = double.tryParse(value);
+        if (numValue == null) {
+          gpaError = 'Please enter a valid number';
+        } else if (numValue < 0 || numValue > 4) {
+          gpaError = 'GPA must be between 0.0 and 4.0';
         } else {
           gpaError = '';
         }
+      });
+    } else {
+      setState(() {
+        formData['gpa'] = value;
+        gpaError = '';
       });
     }
   }
@@ -63,7 +131,6 @@ class _AcademicScreenState extends State<AcademicScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          // 🌌 Background
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -73,11 +140,7 @@ class _AcademicScreenState extends State<AcademicScreen>
               ),
             ),
           ),
-
-          // ✨ Particles
           const Particles(),
-
-          // 📄 Content
           SafeArea(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -132,7 +195,7 @@ class _AcademicScreenState extends State<AcademicScreen>
         ),
         const SizedBox(height: 20),
         Text(
-          CustomLocalizations.of(context).get('academicInformation'),
+          'Academic Information',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -163,18 +226,21 @@ class _AcademicScreenState extends State<AcademicScreen>
             CustomLocalizations.of(context).get('universityName'),
             'university',
             CustomLocalizations.of(context).get('enterYourUniversity'),
+            controller: _universityController,
           ),
           const SizedBox(height: 16),
           buildField(
             CustomLocalizations.of(context).get('facultyCollege'),
             'faculty',
             CustomLocalizations.of(context).get('enterYourFaculty'),
+            controller: _facultyController,
           ),
           const SizedBox(height: 16),
           buildField(
             CustomLocalizations.of(context).get('majorFieldOfStudy'),
             'major',
             CustomLocalizations.of(context).get('enterYourMajor'),
+            controller: _majorController,
           ),
           const SizedBox(height: 16),
           buildDropdown(),
@@ -187,7 +253,12 @@ class _AcademicScreenState extends State<AcademicScreen>
     );
   }
 
-  Widget buildField(String label, String key, String placeholder) {
+  Widget buildField(
+    String label,
+    String key,
+    String placeholder, {
+    TextEditingController? controller,
+  }) {
     final palette = AppPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,6 +273,7 @@ class _AcademicScreenState extends State<AcademicScreen>
         ),
         const SizedBox(height: 8),
         TextField(
+          controller: controller,
           onChanged: (v) => formData[key] = v,
           style: TextStyle(color: palette.textPrimary, fontSize: 14),
           decoration: InputDecoration(
@@ -289,9 +361,9 @@ class _AcademicScreenState extends State<AcademicScreen>
             ],
             onChanged: (v) =>
                 setState(() => formData['academicYear'] = v ?? ''),
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
               isDense: true,
             ),
             style: TextStyle(color: palette.textPrimary, fontSize: 14),
@@ -319,6 +391,7 @@ class _AcademicScreenState extends State<AcademicScreen>
         Stack(
           children: [
             TextField(
+              controller: _gpaController,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -372,21 +445,56 @@ class _AcademicScreenState extends State<AcademicScreen>
 
   Widget saveButton() {
     final palette = AppPalette.of(context);
+    if (_isSaved) {
+      return const SizedBox.shrink(); // Hide the button after saving
+    }
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () {
-          // TODO: Save academic information to database or state
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                CustomLocalizations.of(context).get('academicInformationSaved'),
-              ),
-            ),
-          );
-          Navigator.pop(context);
-        },
+        onPressed: _isSaving
+            ? null
+            : () async {
+                setState(() => _isSaving = true);
+                try {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user == null) {
+                    throw 'User not logged in';
+                  }
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .set({
+                        'fullName': widget.personalData['fullName'] ?? '',
+                        'username': widget.personalData['username'] ?? '',
+                        'age': widget.personalData['age'] ?? '',
+                        'sex': widget.personalData['sex'] ?? '',
+                        'phone': widget.personalData['phone'] ?? '',
+                        'imagePath': widget.imagePath ?? '',
+                        'university': formData['university'] ?? '',
+                        'faculty': formData['faculty'] ?? '',
+                        'major': formData['major'] ?? '',
+                        'academicYear': formData['academicYear'] ?? '',
+                        'gpa': formData['gpa'] ?? '',
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      }, SetOptions(merge: true));
+                  if (!mounted) return;
+                  setState(() => _isSaved = true); // Mark as saved
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('All information saved successfully'),
+                    ),
+                  );
+                  // Removed Navigator.pop(context) to stay on the page
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                } finally {
+                  if (mounted) setState(() => _isSaving = false);
+                }
+              },
         style: ElevatedButton.styleFrom(
           backgroundColor: palette.primary,
           shape: RoundedRectangleBorder(
@@ -394,20 +502,21 @@ class _AcademicScreenState extends State<AcademicScreen>
           ),
           elevation: 0,
         ),
-        child: Text(
-          CustomLocalizations.of(context).get('saveInformation'),
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        child: _isSaving
+            ? const CircularProgressIndicator(color: Colors.white)
+            : Text(
+                CustomLocalizations.of(context).get('saveInformation'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }
 }
 
-// ✨ Particles
 class Particles extends StatefulWidget {
   const Particles({super.key});
 
@@ -429,6 +538,12 @@ class _ParticlesState extends State<Particles>
   }
 
   @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
@@ -445,7 +560,6 @@ class ParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.blue.withOpacity(0.3);
-
     for (int i = 0; i < 20; i++) {
       final x = rand.nextDouble() * size.width;
       final y = rand.nextDouble() * size.height;

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import '../l10n/app_localizations.dart';
 import '../localization_helper.dart';
+import '../services/task_service.dart';
+import '../services/study_hour_service.dart';
 
 void main() {
   runApp(const HomePage());
@@ -43,6 +45,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
+    _setupStudyTracking();
+
     // حركة لفوق وتحت
     _orbController = AnimationController(
       vsync: this,
@@ -75,6 +79,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _orbController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  Future<void> _setupStudyTracking() async {
+    await StudyHourService.initializeStudyHours();
+    await StudyHourService.updateStudyHourIfTimeElapsed();
+    await StudyHourService.updateStudyDaysIfTimeElapsed();
   }
 
   final Random random = Random();
@@ -186,9 +196,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     color: palette.textSecondary,
                                   ),
                                 ),
-                                Text(
-                                  "15 Days 🔥",
-                                  style: TextStyle(color: palette.textPrimary),
+                                StreamBuilder<String>(
+                                  stream:
+                                      StudyHourService.formattedStudyDaysStream(),
+                                  builder: (context, snapshot) {
+                                    final studyDays =
+                                        snapshot.data ?? '0 Days 🔥';
+                                    return Text(
+                                      studyDays,
+                                      style: TextStyle(
+                                        color: palette.textPrimary,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -330,13 +350,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      statCard(
-                        Icons.menu_book,
-                        localizations.tasks,
-                        "12",
-                        palette,
+                      StreamBuilder<int>(
+                        stream: TaskService.completedTaskCountStream(),
+                        builder: (context, snapshot) {
+                          final completedTasks = snapshot.data ?? 0;
+                          return statCard(
+                            Icons.menu_book,
+                            localizations.tasks,
+                            completedTasks.toString(),
+                            palette,
+                          );
+                        },
                       ),
-                      statCard(Icons.timer, localizations.days, "48h", palette),
+                      StreamBuilder<String>(
+                        stream: StudyHourService.formattedStudyHoursStream(),
+                        builder: (context, snapshot) {
+                          final studyHours = snapshot.data ?? '0h';
+                          return statCard(
+                            Icons.timer,
+                            localizations.days,
+                            studyHours,
+                            palette,
+                          );
+                        },
+                      ),
                       statCard(
                         Icons.emoji_events,
                         localizations.points,

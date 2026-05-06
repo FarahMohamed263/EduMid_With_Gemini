@@ -4,6 +4,7 @@ import 'package:ai_study_app/app_palette.dart';
 // ignore: unused_import
 import '../l10n/app_localizations.dart';
 import '../localization_helper.dart';
+import '../services/rate_service.dart';
 
 class AppInfoScreen extends StatefulWidget {
   const AppInfoScreen({super.key});
@@ -18,6 +19,7 @@ class _AppInfoScreenState extends State<AppInfoScreen>
   bool _expandedContact = false;
   bool _expandedRating = false;
   int _rating = 0;
+  bool _hasSubmittedRating = false;
   final int _hoveredStar = 0;
 
   final List<Map<String, dynamic>> features = [
@@ -50,6 +52,22 @@ class _AppInfoScreenState extends State<AppInfoScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat();
+    _loadExistingRating();
+  }
+
+  Future<void> _loadExistingRating() async {
+    try {
+      final state = await RateService.loadRateState();
+      if (!mounted) return;
+      setState(() {
+        _hasSubmittedRating = state.userRating != null;
+        if (_hasSubmittedRating) {
+          _rating = state.userRating!;
+        }
+      });
+    } catch (_) {
+      // Keep UI usable even if rating lookup fails.
+    }
   }
 
   @override
@@ -509,8 +527,11 @@ class _AppInfoScreenState extends State<AppInfoScreen>
                                               ? _hoveredStar
                                               : _rating);
                                       return GestureDetector(
-                                        onTap: () =>
-                                            setState(() => _rating = star),
+                                        onTap: _hasSubmittedRating
+                                            ? null
+                                            : () => setState(
+                                                () => _rating = star,
+                                              ),
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 4,
@@ -528,12 +549,104 @@ class _AppInfoScreenState extends State<AppInfoScreen>
                                       );
                                     }),
                                   ),
-                                  if (_rating > 0) ...[
+                                  if (_hasSubmittedRating) ...[
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      CustomLocalizations.of(
+                                        context,
+                                      ).get('ratingAlreadySubmittedOnce'),
+                                      style: TextStyle(
+                                        color: palette.textSecondary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                  if (_rating > 0 && !_hasSubmittedRating) ...[
                                     const SizedBox(height: 16),
                                     SizedBox(
                                       width: double.infinity,
                                       child: ElevatedButton(
-                                        onPressed: () {},
+                                        onPressed: () async {
+                                          try {
+                                            await RateService.submitRating(
+                                              _rating,
+                                            );
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    CustomLocalizations.of(
+                                                      context,
+                                                    ).get(
+                                                      'ratingSubmittedSuccessfully',
+                                                    ),
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  backgroundColor:
+                                                      palette.primary,
+                                                  duration: const Duration(
+                                                    seconds: 2,
+                                                  ),
+                                                  behavior:
+                                                      SnackBarBehavior.floating,
+                                                ),
+                                              );
+                                              setState(() {
+                                                _hasSubmittedRating = true;
+                                                _expandedRating = false;
+                                              });
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              final isAlreadySubmitted = e
+                                                  .toString()
+                                                  .contains(
+                                                    'Rating already submitted',
+                                                  );
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    isAlreadySubmitted
+                                                        ? CustomLocalizations.of(
+                                                            context,
+                                                          ).get(
+                                                            'ratingAlreadySubmittedOnce',
+                                                          )
+                                                        : 'Error: ${e.toString()}',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                  backgroundColor:
+                                                      isAlreadySubmitted
+                                                      ? palette.primary
+                                                      : Colors.red[600],
+                                                  duration: const Duration(
+                                                    seconds: 3,
+                                                  ),
+                                                  behavior:
+                                                      SnackBarBehavior.floating,
+                                                ),
+                                              );
+                                              if (isAlreadySubmitted) {
+                                                setState(() {
+                                                  _hasSubmittedRating = true;
+                                                  _expandedRating = false;
+                                                });
+                                              }
+                                            }
+                                          }
+                                        },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: palette.primary,
                                           padding: const EdgeInsets.symmetric(

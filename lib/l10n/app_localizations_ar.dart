@@ -299,4 +299,11 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get uploadNew => 'رفع جديد';
+
+  @override
+  String get ratingSubmittedSuccessfully => 'شكراً! تم إرسال تقييمك بنجاح.';
+
+  @override
+  String get ratingAlreadySubmittedOnce =>
+      'لقد أرسلت تقييمك بالفعل. يُسمح بتقييم واحد فقط.';
 }

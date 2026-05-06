@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:ai_study_app/app_palette.dart';
 import 'package:ai_study_app/services/pdf_ai_service.dart';
+import 'package:ai_study_app/services/user_servise.dart';
 import '../localization_helper.dart';
 
 class PdfPage extends StatefulWidget {
@@ -235,6 +236,9 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                                 ? _QuizView(
                                     questions: _quiz!,
                                     palette: palette,
+                                    onQuizCompleted: () async {
+                                      await UserService.incrementQuizCount();
+                                    },
                                     onUploadNew: () => setState(() {
                                       _summary = null;
                                       _quiz = null;
@@ -469,10 +473,12 @@ class _QuizView extends StatefulWidget {
   final List<QuizQuestion> questions;
   final AppPalette palette;
   final VoidCallback onUploadNew;
+  final Future<void> Function()? onQuizCompleted;
 
   const _QuizView({
     required this.questions,
     required this.palette,
+    this.onQuizCompleted,
     required this.onUploadNew,
   });
 
@@ -483,6 +489,7 @@ class _QuizView extends StatefulWidget {
 class _QuizViewState extends State<_QuizView> {
   final Map<int, int> _answers = {};
   bool _submitted = false;
+  bool _hasRecordedCompletion = false;
 
   int get _score => _answers.entries
       .where((e) => e.value == widget.questions[e.key].correctIndex)
@@ -599,7 +606,13 @@ class _QuizViewState extends State<_QuizView> {
             if (!_submitted)
               ElevatedButton(
                 onPressed: _answers.length == widget.questions.length
-                    ? () => setState(() => _submitted = true)
+                    ? () async {
+                        setState(() => _submitted = true);
+                        if (!_hasRecordedCompletion) {
+                          _hasRecordedCompletion = true;
+                          await widget.onQuizCompleted?.call();
+                        }
+                      }
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: palette.primary,

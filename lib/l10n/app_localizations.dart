@@ -673,6 +673,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Upload New'**
   String get uploadNew;
+
+  /// No description provided for @ratingSubmittedSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you! Your rating has been submitted successfully.'**
+  String get ratingSubmittedSuccessfully;
+
+  /// No description provided for @ratingAlreadySubmittedOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'You already submitted your rating. You can rate only once.'**
+  String get ratingAlreadySubmittedOnce;
 }
 
 class _AppLocalizationsDelegate

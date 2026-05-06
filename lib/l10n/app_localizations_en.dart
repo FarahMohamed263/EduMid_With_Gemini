@@ -299,4 +299,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get uploadNew => 'Upload New';
+
+  @override
+  String get ratingSubmittedSuccessfully =>
+      'Thank you! Your rating has been submitted successfully.';
+
+  @override
+  String get ratingAlreadySubmittedOnce =>
+      'You already submitted your rating. You can rate only once.';
 }

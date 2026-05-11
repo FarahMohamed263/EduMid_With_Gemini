@@ -1,8 +1,13 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:ai_study_app/app_palette.dart';
-import 'package:ai_study_app/services/pdf_ai_service.dart';
+import 'package:ai_study_app/services/puter_ai_service.dart';
+import 'package:ai_study_app/screens/ai_chat.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:ai_study_app/services/user_servise.dart';
+import 'package:ai_study_app/services/stats_service.dart';
 import '../localization_helper.dart';
 
 class PdfPage extends StatefulWidget {
@@ -13,10 +18,9 @@ class PdfPage extends StatefulWidget {
 }
 
 class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
-  final PdfAiService _service = PdfAiService();
+  final PuterAiService _service = PuterAiService();
   final Random random = Random();
 
-  // States
   bool _isLoading = false;
   String _loadingMessage = '';
   String? _pdfName;
@@ -24,8 +28,9 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
   String? _summary;
   List<QuizQuestion>? _quiz;
   bool _showQuiz = false;
+  Uint8List? _pdfBytes;
+  String? _extractedText;
 
-  // Animations
   late final AnimationController _orbController;
   late final AnimationController _pulseController;
   late final Animation<double> _orbAnimationY;
@@ -37,10 +42,9 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
-    _orbAnimationY = Tween<double>(
-      begin: -10,
-      end: 10,
-    ).animate(CurvedAnimation(parent: _orbController, curve: Curves.easeInOut));
+    _orbAnimationY = Tween<double>(begin: -10, end: 10).animate(
+      CurvedAnimation(parent: _orbController, curve: Curves.easeInOut),
+    );
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -54,6 +58,16 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  void _resetState() {
+    setState(() {
+      _summary = null;
+      _quiz = null;
+      _showQuiz = false;
+      _pdfBytes = null;
+      _extractedText = null;
+    });
+  }
+
   Future<void> _handleUpload() async {
     setState(() {
       _isLoading = true;
@@ -62,11 +76,12 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
       _quiz = null;
       _pdfName = null;
       _showQuiz = false;
+      _pdfBytes = null;
+      _extractedText = null;
     });
 
     try {
       final result = await _service.pickAndUploadPdf();
-
       if (result == null) {
         setState(() => _isLoading = false);
         return;
@@ -75,25 +90,36 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
       setState(() {
         _pdfName = result['fileName'];
         _pdfSize = result['fileSize'];
-        _loadingMessage = CustomLocalizations.of(
-          context,
-        ).get('generatingSummary');
+        _pdfBytes = result['bytes'];
+        _loadingMessage = CustomLocalizations.of(context).get('generatingSummary');
       });
 
-      final summary = await _service.generateSummary(result['text']);
+      final pdfDoc = PdfDocument(inputBytes: _pdfBytes!);
+      final extractor = PdfTextExtractor(pdfDoc);
+      _extractedText = extractor.extractText();
+      pdfDoc.dispose();
 
-      setState(() {
-        _summary = summary;
-        _isLoading = false;
-      });
+      await StatsService.incrementPdfCount();
+      setState(() => _isLoading = false);
+
+      final rawResult = await PuterAiService.runPrompt(
+        context: context,
+        text: _extractedText!,
+        type: 'summary',
+      );
+
+      final decoded = jsonDecode(rawResult);
+      if (decoded['success'] == true) {
+        setState(() => _summary = decoded['result']);
+      } else {
+        throw Exception(decoded['error']);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '${CustomLocalizations.of(context).get('errorOccurred')}: $e',
-            ),
+            content: Text('${CustomLocalizations.of(context).get('errorOccurred')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -102,26 +128,34 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
   }
 
   Future<void> _handleGenerateQuiz() async {
-    if (_summary == null) return;
-    setState(() {
-      _isLoading = true;
-      _loadingMessage = CustomLocalizations.of(context).get('generatingQuiz');
-    });
+    if (_extractedText == null) return;
+
     try {
-      final quiz = await _service.generateQuiz(_summary!);
-      setState(() {
-        _quiz = quiz;
-        _showQuiz = true;
-        _isLoading = false;
-      });
+      final rawResult = await PuterAiService.runPrompt(
+        context: context,
+        text: _extractedText!,
+        type: 'quiz',
+      );
+
+      final decoded = jsonDecode(rawResult);
+      if (decoded['success'] == true) {
+        final cleaned = (decoded['result'] as String)
+            .replaceAll('```json', '')
+            .replaceAll('```', '')
+            .trim();
+        final parsed = jsonDecode(cleaned) as List;
+        setState(() {
+          _quiz = parsed.map((q) => QuizQuestion.fromJson(q)).toList();
+          _showQuiz = true;
+        });
+      } else {
+        throw Exception(decoded['error']);
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '${CustomLocalizations.of(context).get('errorOccurred')}: $e',
-            ),
+            content: Text('${CustomLocalizations.of(context).get('errorOccurred')}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -171,7 +205,6 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Header
                   Row(
                     children: [
                       GestureDetector(
@@ -189,11 +222,8 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                             ],
                           ),
                           padding: const EdgeInsets.all(10),
-                          child: Icon(
-                            Icons.arrow_back_ios_new,
-                            color: palette.textPrimary,
-                            size: 18,
-                          ),
+                          child: Icon(Icons.arrow_back_ios_new,
+                              color: palette.textPrimary, size: 18),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -202,18 +232,12 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              CustomLocalizations.of(
-                                context,
-                              ).get('aiSummarizerTitle'),
+                              CustomLocalizations.of(context).get('aiSummarizerTitle'),
                               style: TextStyle(
-                                color: palette.textPrimary,
-                                fontSize: 22,
-                              ),
+                                  color: palette.textPrimary, fontSize: 22),
                             ),
                             Text(
-                              CustomLocalizations.of(
-                                context,
-                              ).get('uploadPdfSubtitle'),
+                              CustomLocalizations.of(context).get('uploadPdfSubtitle'),
                               style: TextStyle(color: palette.textSecondary),
                             ),
                           ],
@@ -221,10 +245,7 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Body
                   Expanded(
                     child: _isLoading
                         ? _buildLoading()
@@ -233,19 +254,16 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                             child: _summary == null
                                 ? _uploadScreen(palette)
                                 : _showQuiz && _quiz != null
-                                ? _QuizView(
-                                    questions: _quiz!,
-                                    palette: palette,
-                                    onQuizCompleted: () async {
-                                      await UserService.incrementQuizCount();
-                                    },
-                                    onUploadNew: () => setState(() {
-                                      _summary = null;
-                                      _quiz = null;
-                                      _showQuiz = false;
-                                    }),
-                                  )
-                                : _summaryScreen(palette),
+                                    ? _QuizView(
+                                        questions: _quiz!,
+                                        palette: palette,
+                                        onQuizCompleted: (score, total) async {
+                                          await UserService.incrementQuizCount();
+                                          await StatsService.saveQuizResult(score, total);
+                                        },
+                                        onUploadNew: _resetState,
+                                      )
+                                    : _summaryScreen(palette),
                           ),
                   ),
                 ],
@@ -265,10 +283,8 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
         children: [
           CircularProgressIndicator(color: palette.primary),
           const SizedBox(height: 20),
-          Text(
-            _loadingMessage,
-            style: TextStyle(color: palette.textPrimary, fontSize: 16),
-          ),
+          Text(_loadingMessage,
+              style: TextStyle(color: palette.textPrimary, fontSize: 16)),
         ],
       ),
     );
@@ -300,11 +316,7 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
               animation: _orbAnimationY,
               builder: (_, _) => Transform.translate(
                 offset: Offset(0, _orbAnimationY.value),
-                child: Icon(
-                  Icons.file_present,
-                  color: palette.primary,
-                  size: 60,
-                ),
+                child: Icon(Icons.file_present, color: palette.primary, size: 60),
               ),
             ),
             const SizedBox(height: 12),
@@ -336,7 +348,7 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // File Card
+            // File card
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 12),
@@ -353,11 +365,8 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                       color: Colors.blue.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child: const Icon(
-                      Icons.picture_as_pdf,
-                      color: Colors.red,
-                      size: 24,
-                    ),
+                    child: const Icon(Icons.picture_as_pdf,
+                        color: Colors.red, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -365,24 +374,17 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _pdfName ??
-                              CustomLocalizations.of(context).get('pdfFile'),
+                          _pdfName ?? CustomLocalizations.of(context).get('pdfFile'),
                           style: TextStyle(color: palette.textPrimary),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          _pdfSize ?? '',
-                          style: TextStyle(color: palette.textSecondary),
-                        ),
+                        Text(_pdfSize ?? '',
+                            style: TextStyle(color: palette.textSecondary)),
                         const SizedBox(height: 4),
                         Text(
-                          CustomLocalizations.of(
-                            context,
-                          ).get('uploadedSuccessfully'),
+                          CustomLocalizations.of(context).get('uploadedSuccessfully'),
                           style: TextStyle(
-                            color: Colors.green.shade600,
-                            fontSize: 12,
-                          ),
+                              color: Colors.green.shade600, fontSize: 12),
                         ),
                       ],
                     ),
@@ -391,7 +393,7 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
               ),
             ),
 
-            // Summary Card
+            // Summary card
             Container(
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 12),
@@ -411,27 +413,78 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                   Text(
                     _summary!,
                     style: TextStyle(
-                      color: palette.textSecondary,
-                      fontSize: 13,
-                      height: 1.6,
-                    ),
+                        color: palette.textSecondary, fontSize: 13, height: 1.6),
                   ),
                   const SizedBox(height: 20),
 
-                  // Buttons
-                  ElevatedButton(
-                    onPressed: () => setState(() {
-                      _summary = null;
-                      _quiz = null;
-                      _showQuiz = false;
-                    }),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: palette.primary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
+                  // Ask AI button
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatPage(pdfContext: _summary),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            palette.primary.withOpacity(0.85),
+                            palette.primary.withOpacity(0.5),
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: palette.primary.withOpacity(0.3)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: palette.primary.withOpacity(0.25),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Ask AI about this',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Icon(Icons.arrow_forward_ios,
+                              color: Colors.white, size: 13),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Upload new
+                  ElevatedButton(
+                    onPressed: _resetState,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: palette.surface,
+                      foregroundColor: palette.textPrimary,
+                      minimumSize: const Size(double.infinity, 50),
+                      side: BorderSide(color: palette.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
                     ),
                     child: Text(
                       CustomLocalizations.of(context).get('uploadNew'),
@@ -441,6 +494,7 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
 
                   const SizedBox(height: 12),
 
+                  // Generate quiz
                   ElevatedButton(
                     onPressed: _handleGenerateQuiz,
                     style: ElevatedButton.styleFrom(
@@ -448,8 +502,7 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                          borderRadius: BorderRadius.circular(20)),
                     ),
                     child: Text(
                       CustomLocalizations.of(context).get('generateQuiz'),
@@ -467,13 +520,39 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
 }
 
 // ─────────────────────────────────────────────
+// Quiz Question Model
+// ─────────────────────────────────────────────
+class QuizQuestion {
+  final String question;
+  final List<String> options;
+  final int correctIndex;
+
+  QuizQuestion({
+    required this.question,
+    required this.options,
+    required this.correctIndex,
+  });
+
+  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
+    final options = List<String>.from(json['options']);
+    final answer = json['answer'] as String;
+    final correctIndex = options.indexOf(answer);
+    return QuizQuestion(
+      question: json['question'],
+      options: options,
+      correctIndex: correctIndex == -1 ? 0 : correctIndex,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
 // Quiz View
 // ─────────────────────────────────────────────
 class _QuizView extends StatefulWidget {
   final List<QuizQuestion> questions;
   final AppPalette palette;
   final VoidCallback onUploadNew;
-  final Future<void> Function()? onQuizCompleted;
+  final Future<void> Function(int score, int total)? onQuizCompleted;
 
   const _QuizView({
     required this.questions,
@@ -518,7 +597,6 @@ class _QuizViewState extends State<_QuizView> {
               ),
             ),
             const SizedBox(height: 16),
-
             ...widget.questions.asMap().entries.map((entry) {
               final i = entry.key;
               final q = entry.value;
@@ -563,9 +641,7 @@ class _QuizViewState extends State<_QuizView> {
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
+                              horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
                             color: bgColor,
                             borderRadius: BorderRadius.circular(10),
@@ -574,23 +650,16 @@ class _QuizViewState extends State<_QuizView> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: Text(
-                                  opt.value,
-                                  style: TextStyle(color: palette.textPrimary),
-                                ),
+                                child: Text(opt.value,
+                                    style: TextStyle(
+                                        color: palette.textPrimary)),
                               ),
                               if (_submitted && isCorrect)
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 18,
-                                ),
+                                const Icon(Icons.check_circle,
+                                    color: Colors.green, size: 18),
                               if (_submitted && isSelected && !isCorrect)
-                                const Icon(
-                                  Icons.cancel,
-                                  color: Colors.red,
-                                  size: 18,
-                                ),
+                                const Icon(Icons.cancel,
+                                    color: Colors.red, size: 18),
                             ],
                           ),
                         ),
@@ -600,9 +669,7 @@ class _QuizViewState extends State<_QuizView> {
                 ),
               );
             }),
-
             const SizedBox(height: 8),
-
             if (!_submitted)
               ElevatedButton(
                 onPressed: _answers.length == widget.questions.length
@@ -610,7 +677,8 @@ class _QuizViewState extends State<_QuizView> {
                         setState(() => _submitted = true);
                         if (!_hasRecordedCompletion) {
                           _hasRecordedCompletion = true;
-                          await widget.onQuizCompleted?.call();
+                          await widget.onQuizCompleted?.call(
+                              _score, widget.questions.length);
                         }
                       }
                     : null,
@@ -620,15 +688,13 @@ class _QuizViewState extends State<_QuizView> {
                   disabledBackgroundColor: palette.border,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                      borderRadius: BorderRadius.circular(20)),
                 ),
                 child: Text(
                   CustomLocalizations.of(context).get('submitAnswers'),
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
-
             if (_submitted) ...[
               Container(
                 width: double.infinity,
@@ -636,7 +702,8 @@ class _QuizViewState extends State<_QuizView> {
                 decoration: BoxDecoration(
                   color: Colors.green.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  border:
+                      Border.all(color: Colors.green.withOpacity(0.3)),
                 ),
                 child: Text(
                   '${CustomLocalizations.of(context).get('yourScore')}: $_score / ${widget.questions.length}',
@@ -656,8 +723,7 @@ class _QuizViewState extends State<_QuizView> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                      borderRadius: BorderRadius.circular(20)),
                 ),
                 child: Text(
                   CustomLocalizations.of(context).get('uploadNew'),

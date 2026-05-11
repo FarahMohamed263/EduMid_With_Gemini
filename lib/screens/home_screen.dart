@@ -1,5 +1,5 @@
 import 'package:ai_study_app/screens/ProfilePage.dart';
-import 'package:ai_study_app/screens/al-chat.dart';
+import 'package:ai_study_app/screens/ai_chat.dart';
 import 'package:ai_study_app/screens/pdf_page.dart';
 import 'package:ai_study_app/app_palette.dart';
 import 'package:flutter/material.dart';

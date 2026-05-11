@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:ai_study_app/app_palette.dart';
 import '../l10n/app_localizations.dart';
 import '../services/study_hour_service.dart';
+import '../services/stats_service.dart'; // ← NEW
 
 class StatsPage extends StatefulWidget {
   const StatsPage({super.key});
@@ -13,15 +14,27 @@ class StatsPage extends StatefulWidget {
 }
 
 class _StatsPageState extends State<StatsPage> {
-  final performanceData = [65.0, 70.0, 72.0, 78.0];
+  StatsData? _stats;
+  bool _loading = true;
 
-  final achievements = [
-    {"name": "First Quiz", "icon": "🎯", "earned": true},
-    {"name": "7-Day Streak", "icon": "🔥", "earned": true},
-    {"name": "10 PDFs", "icon": "📚", "earned": true},
-    {"name": "Speed Master", "icon": "⚡", "earned": false},
-    {"name": "Perfect Score", "icon": "💯", "earned": false},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final data = await StatsService.getStats();
+    if (mounted) setState(() { _stats = data; _loading = false; });
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
 
   Widget _card({required Widget child, bool highlight = false}) {
     final palette = AppPalette.of(context);
@@ -64,46 +77,24 @@ class _StatsPageState extends State<StatsPage> {
         children: [
           Icon(icon, color: palette.primary),
           const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(color: palette.textSecondary, fontSize: 12),
-          ),
+          Text(label, style: TextStyle(color: palette.textSecondary, fontSize: 12)),
           Text(
             value,
-            style: TextStyle(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.bold),
           ),
         ],
       ),
     );
   }
 
-  Widget _skill(String text, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12)),
-    );
-  }
-
-  Widget _achievement(Map item) {
-    bool earned = item["earned"];
+  Widget _achievement(String icon, String name, bool earned) {
     return Container(
       width: 90,
       margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: earned
-            ? const LinearGradient(
-                colors: [Color(0xFFFFD700), Color(0xFFFF8C00)],
-              )
+            ? const LinearGradient(colors: [Color(0xFFFFD700), Color(0xFFFF8C00)])
             : null,
         color: earned ? null : const Color(0xFF1F2937),
         boxShadow: earned
@@ -113,10 +104,10 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(item["icon"], style: const TextStyle(fontSize: 26)),
+          Text(icon, style: const TextStyle(fontSize: 26)),
           const SizedBox(height: 6),
           Text(
-            item["name"],
+            name,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 10,
@@ -131,26 +122,60 @@ class _StatsPageState extends State<StatsPage> {
 
   Widget _insight(String text) {
     final palette = AppPalette.of(context);
-    return Row(
-      children: [
-        Icon(Icons.auto_awesome, color: palette.primary, size: 18),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(text, style: TextStyle(color: palette.textPrimary)),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome, color: palette.primary, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: TextStyle(color: palette.textPrimary))),
+        ],
+      ),
     );
   }
+
+  // ─── Dynamic insights based on real data ────────────────────────────────────
+  List<String> _buildInsights(StatsData s) {
+    final insights = <String>[];
+
+    if (s.quizCount == 0) {
+      insights.add('Upload a PDF and take your first quiz to get started!');
+    } else {
+      final pct = (s.avgScore * 100).round();
+      if (pct >= 90) {
+        insights.add('Excellent! Your average score is $pct% — keep it up!');
+      } else if (pct >= 70) {
+        insights.add('Good progress! Your average score is $pct%.');
+      } else {
+        insights.add('Your average is $pct%. Keep practicing to improve!');
+      }
+
+      if (s.quizCount >= 5) {
+        insights.add('You\'ve completed ${s.quizCount} quizzes — great consistency!');
+      } else {
+        insights.add('${5 - s.quizCount} more quizzes to reach Level ${s.level + 1}.');
+      }
+
+      if (s.pdfCount > 0) {
+        insights.add('You\'ve studied ${s.pdfCount} PDF${s.pdfCount > 1 ? "s" : ""} so far.');
+      }
+    }
+
+    return insights;
+  }
+
+  // ─── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final localizations = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
-          /// Gradient
+          // Background gradient
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -161,7 +186,7 @@ class _StatsPageState extends State<StatsPage> {
             ),
           ),
 
-          /// particles
+          // Particles
           ...List.generate(40, (i) {
             final r = Random(i);
             return Positioned(
@@ -170,11 +195,9 @@ class _StatsPageState extends State<StatsPage> {
               child: Opacity(
                 opacity: 0.3,
                 child: Container(
-                  width: 2,
-                  height: 2,
+                  width: 2, height: 2,
                   decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
+                    color: Colors.white, shape: BoxShape.circle,
                   ),
                 ),
               ),
@@ -184,7 +207,7 @@ class _StatsPageState extends State<StatsPage> {
           SafeArea(
             child: Column(
               children: [
-                /// HEADER
+                // ── Header ──────────────────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: Row(
@@ -199,15 +222,9 @@ class _StatsPageState extends State<StatsPage> {
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
                               foreground: Paint()
-                                ..shader =
-                                    LinearGradient(
-                                      colors: [
-                                        palette.primary,
-                                        const Color(0xFF8B5CF6),
-                                      ],
-                                    ).createShader(
-                                      const Rect.fromLTWH(0, 0, 200, 70),
-                                    ),
+                                ..shader = LinearGradient(
+                                  colors: [palette.primary, const Color(0xFF8B5CF6)],
+                                ).createShader(const Rect.fromLTWH(0, 0, 200, 70)),
                             ),
                           ),
                           Text(
@@ -217,8 +234,7 @@ class _StatsPageState extends State<StatsPage> {
                         ],
                       ),
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 48, height: 48,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: LinearGradient(
@@ -231,181 +247,173 @@ class _StatsPageState extends State<StatsPage> {
                   ),
                 ),
 
-                /// CONTENT
+                // ── Content ─────────────────────────────────────────────────
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      children: [
-                        /// PERFORMANCE
-                        _card(
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    localizations.overallPerformance,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.trending_up,
-                                    color: Colors.green,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 110,
-                                        height: 110,
-                                        child: CircularProgressIndicator(
-                                          value: 0.78,
-                                          strokeWidth: 10,
-                                          color: palette.primary,
-                                          backgroundColor: palette.primary
-                                              .withOpacity(0.2),
-                                        ),
-                                      ),
-                                      Text(
-                                        "78%",
-                                        style: TextStyle(
-                                          color: palette.textPrimary,
-                                          fontSize: 20,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 100,
-                                      child: LineChart(
-                                        LineChartData(
-                                          gridData: FlGridData(show: false),
-                                          titlesData: FlTitlesData(show: false),
-                                          borderData: FlBorderData(show: false),
-                                          lineBarsData: [
-                                            LineChartBarData(
-                                              spots: const [
-                                                FlSpot(0, 65),
-                                                FlSpot(1, 70),
-                                                FlSpot(2, 72),
-                                                FlSpot(3, 78),
-                                              ],
-                                              isCurved: true,
-                                              color: palette.primary,
-                                              barWidth: 3,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                  child: _loading
+                      ? Center(child: CircularProgressIndicator(color: palette.primary))
+                      : RefreshIndicator(
+                          onRefresh: _loadStats,
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: _buildContent(palette),
                           ),
                         ),
-
-                        /// QUICK STATS
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _quickStat(Icons.gps_fixed, "Level", "12"),
-                            StreamBuilder<String>(
-                              stream:
-                                  StudyHourService.formattedStudyHoursStream(),
-                              builder: (context, snapshot) {
-                                final studyHours = snapshot.data ?? '0h';
-                                return _quickStat(
-                                  Icons.timer,
-                                  "Hours",
-                                  studyHours,
-                                );
-                              },
-                            ),
-                            _quickStat(Icons.bar_chart, "Score", "94%"),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        /// STRENGTH / WEAKNESS
-                        _card(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      "Strengths",
-                                      style: TextStyle(color: Colors.green),
-                                    ),
-                                    _skill("OOP", Colors.green),
-                                    _skill("Algorithms", Colors.green),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    const Text(
-                                      "Weakness",
-                                      style: TextStyle(color: Colors.orange),
-                                    ),
-                                    _skill("Graphs", Colors.orange),
-                                    _skill("DP", Colors.orange),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        /// ACHIEVEMENTS
-                        _card(
-                          child: SizedBox(
-                            height: 100,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: achievements
-                                  .map((e) => _achievement(e))
-                                  .toList(),
-                            ),
-                          ),
-                        ),
-
-                        /// INSIGHTS
-                        _card(
-                          highlight: true,
-                          child: Column(
-                            children: [
-                              _insight("Focus more on Data Structures"),
-                              _insight("Performance improved by 15%"),
-                              _insight("You're close to Level 15"),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 100),
-                      ],
-                    ),
-                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildContent(AppPalette palette) {
+    final s = _stats!;
+    final scorePct = s.avgScore; // 0.0–1.0
+    final scoreLabel = s.quizCount == 0
+        ? '—'
+        : '${(scorePct * 100).round()}%';
+
+    return Column(
+      children: [
+        // ── Overall Performance ────────────────────────────────────────────
+        _card(
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Overall Performance',
+                    style: TextStyle(color: palette.textPrimary, fontSize: 18),
+                  ),
+                  Icon(
+                    Icons.trending_up,
+                    color: scorePct >= 0.5 ? Colors.green : Colors.orange,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  // Circular progress
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 110, height: 110,
+                        child: CircularProgressIndicator(
+                          value: s.quizCount == 0 ? 0 : scorePct,
+                          strokeWidth: 10,
+                          color: palette.primary,
+                          backgroundColor: palette.primary.withOpacity(0.2),
+                        ),
+                      ),
+                      Text(
+                        scoreLabel,
+                        style: TextStyle(color: palette.textPrimary, fontSize: 20),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  // Line chart of last 6 quizzes
+                  Expanded(
+                    child: SizedBox(
+                      height: 100,
+                      child: s.quizCount == 0
+                          ? Center(
+                              child: Text(
+                                'No quizzes yet',
+                                style: TextStyle(color: palette.textSecondary, fontSize: 12),
+                              ),
+                            )
+                          : LineChart(
+                              LineChartData(
+                                gridData: FlGridData(show: false),
+                                titlesData: FlTitlesData(show: false),
+                                borderData: FlBorderData(show: false),
+                                lineBarsData: [
+                                  LineChartBarData(
+                                    spots: s.scoreHistory
+                                        .asMap()
+                                        .entries
+                                        .map((e) => FlSpot(e.key.toDouble(), e.value))
+                                        .toList(),
+                                    isCurved: true,
+                                    color: palette.primary,
+                                    barWidth: 3,
+                                    dotData: FlDotData(show: true),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // ── Quick Stats ────────────────────────────────────────────────────
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _quickStat(Icons.gps_fixed, 'Level', '${s.level}'),
+            StreamBuilder<String>(
+              stream: StudyHourService.formattedStudyHoursStream(),
+              builder: (context, snapshot) =>
+                  _quickStat(Icons.timer, 'Hours', snapshot.data ?? '0h'),
+            ),
+            _quickStat(
+              Icons.bar_chart,
+              'Score',
+              s.quizCount == 0 ? '—' : '${(s.avgScore * 100).round()}%',
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // ── Achievements ───────────────────────────────────────────────────
+        _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Achievements',
+                style: TextStyle(color: palette.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _achievement('🎯', 'First Quiz',   s.firstQuiz),
+                    _achievement('📚', '10 PDFs',      s.tenPdfs),
+                    _achievement('💯', 'Perfect Score', s.perfectScore),
+                    _achievement('⚡', 'Speed Master',  false), // future
+                    _achievement('🔥', '7-Day Streak',  false), // future
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── Insights ───────────────────────────────────────────────────────
+        _card(
+          highlight: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: _buildInsights(s).map(_insight).toList(),
+          ),
+        ),
+
+        const SizedBox(height: 100),
+      ],
     );
   }
 }

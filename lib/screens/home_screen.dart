@@ -307,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     ),
                                   ),
 
-                                  // Icons فوق
+                                  // Icons فوق — Chat و Upload بس
                                   if (orbExpanded)
                                     Positioned(
                                       bottom: 140,
@@ -322,14 +322,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                           pulseIcon(
                                             Icons.upload,
                                             localizations.upload,
-                                            palette,
-                                          ),
-                                          const SizedBox(width: 20),
-                                          pulseIcon(
-                                            Icons.flag,
-                                            CustomLocalizations.of(
-                                              context,
-                                            ).get('quiz'),
                                             palette,
                                           ),
                                         ],

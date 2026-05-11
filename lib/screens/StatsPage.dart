@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:ai_study_app/app_palette.dart';
 import '../l10n/app_localizations.dart';
 import '../services/study_hour_service.dart';
-import '../services/stats_service.dart'; // ← NEW
+import '../services/stats_service.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({super.key});
@@ -211,7 +211,6 @@ class _StatsPageState extends State<StatsPage> {
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,16 +231,6 @@ class _StatsPageState extends State<StatsPage> {
                             style: TextStyle(color: palette.textSecondary),
                           ),
                         ],
-                      ),
-                      Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [palette.primary, const Color(0xFF8B5CF6)],
-                          ),
-                        ),
-                        child: const Icon(Icons.person, color: Colors.white),
                       ),
                     ],
                   ),
@@ -270,7 +259,7 @@ class _StatsPageState extends State<StatsPage> {
 
   Widget _buildContent(AppPalette palette) {
     final s = _stats!;
-    final scorePct = s.avgScore; // 0.0–1.0
+    final scorePct = s.avgScore;
     final scoreLabel = s.quizCount == 0
         ? '—'
         : '${(scorePct * 100).round()}%';
@@ -391,11 +380,11 @@ class _StatsPageState extends State<StatsPage> {
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    _achievement('🎯', 'First Quiz',   s.firstQuiz),
-                    _achievement('📚', '10 PDFs',      s.tenPdfs),
+                    _achievement('🎯', 'First Quiz',    s.firstQuiz),
+                    _achievement('📚', '10 PDFs',       s.tenPdfs),
                     _achievement('💯', 'Perfect Score', s.perfectScore),
-                    _achievement('⚡', 'Speed Master',  false), // future
-                    _achievement('🔥', '7-Day Streak',  false), // future
+                    _achievement('⚡', 'Speed Master',  false),
+                    _achievement('🔥', '7-Day Streak',  false),
                   ],
                 ),
               ),

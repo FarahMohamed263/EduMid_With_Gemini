@@ -1,17 +1,20 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:ai_study_app/screens/pdf_page.dart';
-import 'package:ai_study_app/app_palette.dart';
-import 'package:ai_study_app/services/puter_ai_service.dart';
 import 'package:flutter/material.dart';
+import 'package:ai_study_app/app_palette.dart';
 import 'package:ai_study_app/screens/main_navigation.dart';
 import '../localization_helper.dart';
+import 'package:ai_study_app/services/gemini_service.dart';
 
 class Message {
   final String id;
   final String text;
   final bool isAI;
-  Message({required this.id, required this.text, required this.isAI});
+
+  Message({
+    required this.id,
+    required this.text,
+    required this.isAI,
+  });
 }
 
 class ChatPage extends StatefulWidget {
@@ -26,15 +29,18 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   List<Message> messages = [];
   bool _isTyping = false;
+
   final TextEditingController controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+
     final greeting = widget.pdfContext != null
         ? "Hello! I've read the document summary. Ask me anything about it!"
         : "Hello! I'm your AI study assistant. Ask me anything!";
+
     messages.add(Message(id: '0', text: greeting, isAI: true));
   }
 
@@ -63,21 +69,21 @@ class _ChatPageState extends State<ChatPage> {
       messages.add(userMsg);
       _isTyping = true;
     });
+
     controller.clear();
     _scrollToBottom();
 
     try {
-      final rawResult = await PuterAiService.sendChatMessage(
-        context: context,
-        message: text,
-        pdfContext: widget.pdfContext,
-        history: messages.where((m) => m.id != userMsg.id).toList(),
-      );
+      // 🧠 Gemini Prompt
+      String prompt = "You are an AI study assistant. Be helpful and clear.\n\n";
 
-      final decoded = jsonDecode(rawResult);
-      final reply = decoded['success'] == true
-    ? (decoded['result']?.toString() ?? 'No response received.')
-    : (decoded['error']?.toString() ?? 'Sorry, something went wrong.');
+      if (widget.pdfContext != null) {
+        prompt += "Document:\n${widget.pdfContext}\n\n";
+      }
+
+      prompt += "User: $text\nAI:";
+
+      final reply = await GeminiService.sendMessage(prompt);
 
       setState(() {
         _isTyping = false;
@@ -87,13 +93,14 @@ class _ChatPageState extends State<ChatPage> {
           isAI: true,
         ));
       });
+
       _scrollToBottom();
     } catch (e) {
       setState(() {
         _isTyping = false;
         messages.add(Message(
           id: DateTime.now().toString(),
-          text: 'Error: $e',
+          text: "Error: $e",
           isAI: true,
         ));
       });
@@ -111,6 +118,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+
     return Scaffold(
       backgroundColor: palette.bgBottom,
       body: Stack(
@@ -144,8 +152,11 @@ class _ChatPageState extends State<ChatPage> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: palette.border),
                               ),
-                              child: Icon(Icons.arrow_back_ios_new,
-                                  color: palette.textPrimary, size: 18),
+                              child: Icon(
+                                Icons.arrow_back_ios_new,
+                                color: palette.textPrimary,
+                                size: 18,
+                              ),
                             ),
                           ),
                           if (widget.pdfContext != null)
@@ -156,7 +167,8 @@ class _ChatPageState extends State<ChatPage> {
                                 color: palette.primary.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                    color: palette.primary.withOpacity(0.3)),
+                                  color: palette.primary.withOpacity(0.3),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -164,9 +176,13 @@ class _ChatPageState extends State<ChatPage> {
                                   Icon(Icons.picture_as_pdf,
                                       color: palette.primary, size: 14),
                                   const SizedBox(width: 6),
-                                  Text('PDF Context',
-                                      style: TextStyle(
-                                          color: palette.primary, fontSize: 12)),
+                                  Text(
+                                    'PDF Context',
+                                    style: TextStyle(
+                                      color: palette.primary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -180,9 +196,13 @@ class _ChatPageState extends State<ChatPage> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('AI Study Chat',
-                                  style: TextStyle(
-                                      color: palette.textPrimary, fontSize: 20)),
+                              Text(
+                                'AI Study Chat',
+                                style: TextStyle(
+                                  color: palette.textPrimary,
+                                  fontSize: 20,
+                                ),
+                              ),
                               Text(
                                 widget.pdfContext != null
                                     ? 'Asking about your document'
@@ -228,10 +248,13 @@ class _ChatPageState extends State<ChatPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text('Thinking...',
-                                    style: TextStyle(
-                                        color: palette.textSecondary,
-                                        fontSize: 12)),
+                                Text(
+                                  'Thinking...',
+                                  style: TextStyle(
+                                    color: palette.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -239,6 +262,7 @@ class _ChatPageState extends State<ChatPage> {
                       }
 
                       final msg = messages[index];
+
                       return Align(
                         alignment: msg.isAI
                             ? Alignment.centerLeft
@@ -246,10 +270,12 @@ class _ChatPageState extends State<ChatPage> {
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
                           padding: const EdgeInsets.all(12),
-                          constraints: const BoxConstraints(maxWidth: 270),
+                          constraints:
+                              const BoxConstraints(maxWidth: 270),
                           decoration: BoxDecoration(
-                            color:
-                                msg.isAI ? palette.surface : palette.primary,
+                            color: msg.isAI
+                                ? palette.surface
+                                : palette.primary,
                             borderRadius: BorderRadius.circular(12),
                             border: msg.isAI
                                 ? Border.all(color: palette.border)
@@ -277,39 +303,35 @@ class _ChatPageState extends State<ChatPage> {
                       Expanded(
                         child: TextField(
                           controller: controller,
-                          style: TextStyle(color: palette.textPrimary),
+                          style:
+                              TextStyle(color: palette.textPrimary),
                           onSubmitted: handleSendMessage,
                           decoration: InputDecoration(
                             hintText: CustomLocalizations.of(context)
                                 .get('typeAMessage'),
-                            hintStyle:
-                                TextStyle(color: palette.textSecondary),
+                            hintStyle: TextStyle(
+                                color: palette.textSecondary),
                             filled: true,
                             fillColor: palette.surface,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: palette.border),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: palette.border),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                  color: palette.primary, width: 1.2),
+                              borderRadius:
+                                  BorderRadius.circular(12),
+                              borderSide:
+                                  BorderSide(color: palette.border),
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       GestureDetector(
-                        onTap: () => handleSendMessage(controller.text),
+                        onTap: () =>
+                            handleSendMessage(controller.text),
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: palette.primary,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius:
+                                BorderRadius.circular(12),
                           ),
                           child: const Icon(Icons.send,
                               color: Colors.white, size: 20),

@@ -3,7 +3,8 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:ai_study_app/app_palette.dart';
-import 'package:ai_study_app/services/puter_ai_service.dart';
+import 'package:ai_study_app/services/gemini_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:ai_study_app/screens/ai_chat.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:ai_study_app/services/user_servise.dart';
@@ -18,7 +19,6 @@ class PdfPage extends StatefulWidget {
 }
 
 class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
-  final PuterAiService _service = PuterAiService();
   final Random random = Random();
 
   bool _isLoading = false;
@@ -81,19 +81,25 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
     });
 
     try {
-      final result = await _service.pickAndUploadPdf();
-      if (result == null) {
+      final result = await FilePicker.platform.pickFiles(
+  type: FileType.custom,
+  allowedExtensions: ['pdf'],
+  withData: true,
+);
+
+if (result == null) {
         setState(() => _isLoading = false);
         return;
       }
 
       setState(() {
-        _pdfName = result['fileName'];
-        _pdfSize = result['fileSize'];
-        _pdfBytes = result['bytes'];
-        _loadingMessage = CustomLocalizations.of(context).get('generatingSummary');
+        _pdfName = result.files.first.name;
+        _pdfSize =
+            "${(result.files.first.size / 1024).toStringAsFixed(1)} KB";
+        _pdfBytes = result.files.first.bytes;
+        _loadingMessage =
+            CustomLocalizations.of(context).get('generatingSummary');
       });
-
       final pdfDoc = PdfDocument(inputBytes: _pdfBytes!);
       final extractor = PdfTextExtractor(pdfDoc);
       _extractedText = extractor.extractText();
@@ -102,18 +108,17 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
       await StatsService.incrementPdfCount();
       setState(() => _isLoading = false);
 
-      final rawResult = await PuterAiService.runPrompt(
-        context: context,
-        text: _extractedText!,
-        type: 'summary',
-      );
+      final prompt = """
+      Summarize this document clearly and simply:
 
-      final decoded = jsonDecode(rawResult);
-      if (decoded['success'] == true) {
-        setState(() => _summary = decoded['result']);
-      } else {
-        throw Exception(decoded['error']);
-      }
+      $_extractedText
+      """;
+
+      final summary = await GeminiService.sendMessage(prompt);
+
+      setState(() {
+        _summary = summary;
+      });
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -128,41 +133,45 @@ class _PdfPageState extends State<PdfPage> with TickerProviderStateMixin {
   }
 
   Future<void> _handleGenerateQuiz() async {
-    if (_extractedText == null) return;
+  if (_extractedText == null) return;
 
-    try {
-      final rawResult = await PuterAiService.runPrompt(
-        context: context,
-        text: _extractedText!,
-        type: 'quiz',
-      );
+  try {
+    final prompt = """
+      Generate 5 MCQ questions from this text.
 
-      final decoded = jsonDecode(rawResult);
-      if (decoded['success'] == true) {
-        final cleaned = (decoded['result'] as String)
-            .replaceAll('```json', '')
-            .replaceAll('```', '')
-            .trim();
-        final parsed = jsonDecode(cleaned) as List;
-        setState(() {
-          _quiz = parsed.map((q) => QuizQuestion.fromJson(q)).toList();
-          _showQuiz = true;
-        });
-      } else {
-        throw Exception(decoded['error']);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${CustomLocalizations.of(context).get('errorOccurred')}: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+      Return JSON ONLY like:
+      [
+      { "question": "...", "options": ["a","b","c","d"], "answer": "a" }
+      ]
 
+      TEXT:
+      $_extractedText
+      """;
+
+          final result = await GeminiService.sendMessage(prompt);
+
+          final cleaned = result
+              .replaceAll('```json', '')
+              .replaceAll('```', '')
+              .trim();
+
+          setState(() {
+            _quiz = (jsonDecode(cleaned) as List)
+                .map((e) => QuizQuestion.fromJson(e))
+                .toList();
+            _showQuiz = true;
+          });
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+}
   Widget _floatingParticles(Color particleColor) {
     return Stack(
       children: List.generate(
